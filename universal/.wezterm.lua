@@ -5,7 +5,7 @@ local config = wezterm.config_builder()
 config.color_scheme = "Catppuccin Mocha"
 
 config.font = wezterm.font("FiraCode Nerd Font")
-config.font_size = 16
+config.font_size = 13
 
 config.default_prog = { "/bin/zsh", "-l" }
 
