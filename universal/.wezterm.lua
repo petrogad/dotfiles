@@ -9,8 +9,8 @@ config.font_size = 16
 
 config.default_prog = { "/bin/zsh", "-l" }
 
-config.use_fancy_tab_bar = false
-config.hide_tab_bar_if_only_one_tab = true
+-- config.use_fancy_tab_bar = false
+-- config.hide_tab_bar_if_only_one_tab = true
 config.enable_tab_bar = true
 
 config.window_padding = {

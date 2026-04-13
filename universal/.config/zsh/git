@@ -5,6 +5,7 @@ alias nah="git reset --hard && git clean -df"
 alias gs="git status"
 
 # Checkout the default branch (master or main)
+unalias gm 2>/dev/null
 gm() {
  if git show-ref --verify --quiet refs/heads/master; then
     git checkout master

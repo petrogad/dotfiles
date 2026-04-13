@@ -83,9 +83,7 @@ universal-dots:
 # 	done
 
 homebrew:
-	brew bundle --file="$(DOTFILES)/extra/homebrew/Brewfile"
-	brew cleanup
-	brew doctor
+	brew bundle --no-upgrade --file="$(DOTFILES)/extra/homebrew/Brewfile"
 
 apt-packages:
 	@if [ -f "$(DOTFILES)/extra/apt/packages.txt" ]; then \
