@@ -1,0 +1,57 @@
+{
+  "schemes" : [
+    {
+      "if" : {
+        "device" : {
+          "vendorID" : "0x1532",
+          "productName" : "Razer Viper V3 Pro",
+          "category" : "mouse",
+          "productID" : "0xc1"
+        }
+      },
+      "pointer" : {
+        "speed" : 0.214,
+        "acceleration" : 1.4564
+      },
+      "scrolling" : {
+        "acceleration" : {
+          "vertical" : 1.31
+        }
+      }
+    },
+    {
+      "if" : {
+        "device" : {
+          "category" : "trackpad",
+          "productID" : "0x0",
+          "vendorID" : "0x0",
+          "productName" : "Apple Internal Keyboard \/ Trackpad"
+        }
+      },
+      "pointer" : {
+        "disableAcceleration" : false
+      }
+    },
+    {
+      "if" : {
+        "device" : {
+          "serialNumber" : "0D6439573833",
+          "vendorID" : "0x46d",
+          "productName" : "G502 HERO Gaming Mouse",
+          "productID" : "0xc08b",
+          "category" : "mouse"
+        }
+      },
+      "pointer" : {
+        "acceleration" : 1.526,
+        "speed" : 0.0234
+      },
+      "scrolling" : {
+        "acceleration" : {
+          "vertical" : 1
+        }
+      }
+    }
+  ],
+  "$schema" : "https:\/\/schema.linearmouse.app\/0.10.0"
+}

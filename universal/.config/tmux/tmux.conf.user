@@ -1,0 +1,131 @@
+# -- Prefix override (make Ctrl+a primary) -----------------------------
+
+unbind C-b
+unbind C-a
+
+set -g prefix C-a
+set -g prefix2 None
+
+bind C-a send-prefix
+
+# -- rest of your config below -----------------------------------------
+
+
+# -- Terminal / key handling ---------------------------------------------------
+
+set-option -sa terminal-overrides ",xterm*:Tc"
+set -g default-terminal "tmux-256color"
+
+set -s extended-keys always
+set -as terminal-features 'xterm*:extkeys'
+
+set -s escape-time 0
+set -s focus-events on
+set -sg repeat-time 500
+
+# -- Behavior -----------------------------------------------------------------
+
+set -g mouse on
+set -g history-limit 100000
+
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+
+setw -g automatic-rename off
+set -g allow-rename off
+setw -g aggressive-resize off
+
+setw -g mode-keys vi
+
+set -g detach-on-destroy off
+setw -g monitor-activity off
+set -g visual-activity off
+
+# -- Pane / window creation ----------------------------------------------------
+
+bind s split-window -v -c '#{pane_current_path}'
+bind v split-window -h -c '#{pane_current_path}'
+
+bind | split-window -h -c '#{pane_current_path}'
+bind - split-window -v -c '#{pane_current_path}'
+
+bind t new-window -c '#{pane_current_path}'
+
+bind w confirm-before -p "kill-window #W? (y/n)" kill-window
+bind d confirm-before -p "kill-pane #P? (y/n)" kill-pane
+bind x detach-client
+
+# -- Navigation ----------------------------------------------------------------
+# Prefix-based only to avoid AeroSpace collisions
+
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+
+bind -r H resize-pane -L 5
+bind -r J resize-pane -D 5
+bind -r K resize-pane -U 5
+bind -r L resize-pane -R 5
+
+bind C-h previous-window
+bind C-l next-window
+bind Tab last-window
+
+bind 1 select-window -t 1
+bind 2 select-window -t 2
+bind 3 select-window -t 3
+bind 4 select-window -t 4
+bind 5 select-window -t 5
+bind 6 select-window -t 6
+bind 7 select-window -t 7
+bind 8 select-window -t 8
+bind 9 select-window -t 9
+
+# -- Layout management ---------------------------------------------------------
+
+bind = select-layout even-horizontal
+bind + select-layout even-vertical
+bind Space next-layout
+bind z resize-pane -Z
+
+# -- Copy mode / clipboard -----------------------------------------------------
+
+set -g set-clipboard on
+
+bind -T copy-mode-vi v send-keys -X begin-selection
+bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel "pbcopy"
+bind -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "pbcopy"
+
+# -- Session management --------------------------------------------------------
+
+bind S command-prompt -p "New Session:" "new-session -A -s '%%'"
+bind f command-prompt -p "Switch Session:" "switch-client -t '%%'"
+bind X confirm-before -p "kill-session #S? (y/n)" kill-session
+
+bind R source-file ~/.tmux.conf \; display-message "tmux reloaded"
+bind E new-window -n tmux-config "$EDITOR ~/.config/tmux/tmux.conf.user"
+
+# -- Appearance ----------------------------------------------------------------
+
+set -g status-position top
+set -g status-justify centre
+
+set -g status-style 'bg=default,fg=default'
+set -g status-left-length 20
+set -g status-right-length 50
+
+set -g status-left '#[bold][#S] '
+set -g status-right ' %H:%M %d-%b '
+
+setw -g window-status-format ' #I:#{?window_zoomed_flag,[#W],#W} '
+setw -g window-status-current-format ' #I:#{?window_zoomed_flag,[#W],#W} '
+setw -g window-status-current-style 'fg=#1e1e2e,bg=#89b4fa,bold'
+
+set -g pane-border-style 'fg=brightblack'
+set -g pane-active-border-style 'fg=blue'
+
+set -g message-style 'bg=default,fg=default,bold'
+set -g message-command-style 'bg=default,fg=default,bold'
+set -g mode-style 'bg=blue,fg=black'

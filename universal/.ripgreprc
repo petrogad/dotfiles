@@ -1,0 +1,10 @@
+# Ignore lock files
+--glob=!*.lock
+
+# Ignore build/output directories (fallback for missing .gitignore)
+--glob=!dist/*
+--glob=!build/*
+--glob=!.next/*
+
+# Smart case: case-insensitive unless uppercase is used
+--smart-case

@@ -1,0 +1,147 @@
+# -- twork: paired tmux session framework --------------------------------------
+# Generic framework for managing runtime + agent + adhoc tmux sessions.
+# Project-specific config lives in each repo as .dev.sh
+
+# Initialize the three tmux sessions with bidirectional window sync
+twork-init() {
+  tmux new-session -d -s runtime
+  tmux new-session -d -s agent
+  tmux new-session -d -s adhoc
+  # Bidirectional sync with loop guard using an environment variable
+  tmux set-hook -t runtime after-select-window \
+    'run-shell "if [ \"$(tmux show-environment -t runtime TWORK_SYNCING 2>/dev/null)\" != \"TWORK_SYNCING=1\" ]; then tmux set-environment -t agent TWORK_SYNCING 1; tmux select-window -t agent:#{window_name} 2>/dev/null; tmux set-environment -t agent -u TWORK_SYNCING; fi"'
+  tmux set-hook -t agent after-select-window \
+    'run-shell "if [ \"$(tmux show-environment -t agent TWORK_SYNCING 2>/dev/null)\" != \"TWORK_SYNCING=1\" ]; then tmux set-environment -t runtime TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux set-environment -t runtime -u TWORK_SYNCING; fi"'
+  _twork_needs_cleanup=1
+}
+
+# Tear down all sessions
+twork-nuke() {
+  tmux kill-session -t runtime 2>/dev/null
+  tmux kill-session -t agent 2>/dev/null
+  tmux kill-session -t adhoc 2>/dev/null
+}
+
+# Attach helpers
+twork-runtime() { tmux attach-session -t runtime; }
+twork-agent()   { tmux attach-session -t agent; }
+twork-adhoc()   { tmux attach-session -t adhoc; }
+
+# List active project windows
+twork-ls() { tmux list-windows -t runtime -F '#{window_name}'; }
+
+# Add a simple project (single runtime pane + agent with claude)
+twork-new() {
+  local dir="${2:-$(pwd)}"
+  local name="${1:-$(basename "$dir")}"
+
+  if ! tmux has-session -t runtime 2>/dev/null; then
+    twork-init
+  fi
+
+  tmux new-window -t runtime -n "$name" -c "$dir"
+
+  local ag_wid
+  ag_wid=$(tmux new-window -t agent -n "$name" -c "$dir" -P -F '#{window_id}')
+  tmux split-window -t "$ag_wid" -v -p 30 -c "$dir"
+  local ag_panes
+  ag_panes=(${(f)"$(tmux list-panes -t "$ag_wid" -F '#{pane_id}')"})
+  tmux send-keys -t "${ag_panes[1]}" "yolo" C-m
+  tmux send-keys -t "${ag_panes[2]}" "ls" C-m
+
+  tmux select-window -t "runtime:$name"
+}
+
+# Close a project (both runtime and agent windows)
+twork-close() {
+  local name="${1:-$(tmux display-message -t runtime -p '#{window_name}')}"
+  tmux kill-window -t "runtime:$name" 2>/dev/null
+  tmux kill-window -t "agent:$name" 2>/dev/null
+}
+
+# Add a project with a custom multi-pane layout in the runtime window
+# Usage: _dev_add_project <name> <root> <layout> <cmd1> [cmd2] ...
+_dev_add_project() {
+  local name="$1"; shift
+  local root="$1"; shift
+  local layout="$1"; shift
+  local commands=("$@")
+
+  if ! tmux has-session -t runtime 2>/dev/null; then
+    twork-init
+  fi
+
+  # --- Runtime window ---
+  local rt_wid
+  rt_wid=$(tmux new-window -t runtime -n "$name" -c "$root" -P -F '#{window_id}')
+
+  local num_panes=${#commands[@]}
+  for ((i=2; i<=num_panes; i++)); do
+    tmux split-window -t "$rt_wid" -c "$root"
+  done
+  tmux select-layout -t "$rt_wid" "$layout"
+
+  local rt_panes
+  rt_panes=(${(f)"$(tmux list-panes -t "$rt_wid" -F '#{pane_id}')"})
+  for ((i=1; i<=num_panes; i++)); do
+    tmux send-keys -t "${rt_panes[$i]}" "${commands[$i]}" C-m
+  done
+
+  # --- Agent window: claude (top 70%) + shell (bottom 30%) ---
+  local ag_wid
+  ag_wid=$(tmux new-window -t agent -n "$name" -c "$root" -P -F '#{window_id}')
+  tmux split-window -t "$ag_wid" -v -p 30 -c "$root"
+
+  local ag_panes
+  ag_panes=(${(f)"$(tmux list-panes -t "$ag_wid" -F '#{pane_id}')"})
+  tmux send-keys -t "${ag_panes[1]}" "yolo" C-m
+  tmux send-keys -t "${ag_panes[2]}" "ls" C-m
+
+  # Clean up default empty windows from twork-init
+  if [[ "$_twork_needs_cleanup" -eq 1 ]]; then
+    tmux kill-window -t "runtime:1" 2>/dev/null
+    tmux kill-window -t "agent:1" 2>/dev/null
+    _twork_needs_cleanup=0
+  fi
+
+  tmux select-window -t "runtime:$name"
+}
+
+# -- dev: project launcher -----------------------------------------------------
+# Looks for .dev.sh in the current directory (or a given path) and sources it.
+# The .dev.sh file should call _dev_add_project with the project's config.
+#
+# Usage:
+#   cd ~/github/myproject && dev    # sources .dev.sh from cwd
+#   dev ~/github/myproject          # sources .dev.sh from given path
+
+dev() {
+  local project_dir="${1:-.}"
+  project_dir="$(cd "$project_dir" 2>/dev/null && pwd)" || {
+    echo "Directory not found: $1"
+    return 1
+  }
+
+  local devfile="$project_dir/.dev.sh"
+  if [[ ! -f "$devfile" ]]; then
+    echo "No .dev.sh found in $project_dir"
+    echo "Create one to define your project layout. See: ~/.config/zsh/tmux"
+    return 1
+  fi
+
+  source "$devfile"
+
+  # If already inside tmux, just switch to the project window
+  if [[ -n "$TMUX" ]]; then
+    return
+  fi
+
+  # Spawn agent WezTerm window if no client is attached yet
+  local agent_clients
+  agent_clients=$(tmux list-clients -t agent 2>/dev/null | wc -l | tr -d ' ')
+  if [[ "$agent_clients" -eq 0 ]]; then
+    wezterm cli spawn --new-window -- tmux attach-session -t agent
+  fi
+
+  tmux attach-session -t runtime
+}

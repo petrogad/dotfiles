@@ -1,0 +1,35 @@
+# Discard all local changes and remove untracked files
+alias nah="git reset --hard && git clean -df"
+
+# Short git status
+alias gs="git status"
+
+# Checkout the default branch (master or main)
+gm() {
+ if git show-ref --verify --quiet refs/heads/master; then
+    git checkout master
+ elif git show-ref --verify --quiet refs/heads/main; then
+    git checkout main
+ else
+    echo "Neither master nor main branch found"
+  fi
+}
+
+# Pull latest changes
+alias gp="git pull"
+
+# Stage all changes
+alias ga="git add ."
+
+# Delete local branches already merged into current branch (excluding master/dev)
+alias grm='git branch --merged | egrep -v "(^\*|master|dev)" | xargs git branch -d'
+
+# Pretty one-line log with graph, colors, relative dates, and author
+alias gl="git log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
+
+# Stash current changes, pull with rebase, then restore stash
+gstashpull() {
+  git stash push -m "auto-stash-$(date +%s)"
+  git pull --rebase
+  git stash pop
+}

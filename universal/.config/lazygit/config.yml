@@ -1,0 +1,2 @@
+os:
+  shellFunctionsFile: ~/.config/lazygit/shell_init.sh

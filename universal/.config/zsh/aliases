@@ -1,0 +1,10 @@
+# ls
+alias ls='lsd'
+alias l='lsd -l'
+alias la='lsd -a'
+alias lla='lsd -la'
+alias ll='lsd -la'
+alias lt='lsd --tree'
+
+# claude yolo
+alias yolo="claude --dangerously-skip-permissions"
