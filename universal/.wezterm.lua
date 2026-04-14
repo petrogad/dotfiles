@@ -29,6 +29,17 @@ config.scrollback_lines = 10000
 
 config.enable_kitty_keyboard = true
 
-config.keys = {}
+config.keys = {
+  {
+    key = "d",
+    mods = "CMD",
+    action = wezterm.action.SplitPane({ direction = "Right" }),
+  },
+  {
+    key = "d",
+    mods = "CMD|SHIFT",
+    action = wezterm.action.SplitPane({ direction = "Down" }),
+  },
+}
 
 return config
