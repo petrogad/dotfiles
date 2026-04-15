@@ -1,12 +1,12 @@
-# -- Prefix override (make Ctrl+a primary) -----------------------------
+# -- Prefix override (make Ctrl+Space primary) -------------------------
 
 unbind C-b
 unbind C-a
 
-set -g prefix C-a
+set -g prefix C-Space
 set -g prefix2 None
 
-bind C-a send-prefix
+bind C-Space send-prefix
 
 # -- rest of your config below -----------------------------------------
 
@@ -46,6 +46,7 @@ set -g visual-activity off
 
 bind s split-window -v -c '#{pane_current_path}'
 bind v split-window -h -c '#{pane_current_path}'
+bind N command-prompt -I "#W" "rename-window '%%'"
 
 bind | split-window -h -c '#{pane_current_path}'
 bind - split-window -v -c '#{pane_current_path}'
