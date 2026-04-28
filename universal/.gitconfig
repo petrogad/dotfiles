@@ -2,6 +2,7 @@
 	name = Pete
 	email = petrogad@gmail.com
 
+
 [url "ssh://git@github.com/"]
 	insteadOf = https://github.com/
 [alias]
@@ -50,3 +51,8 @@
 	autoSquash = true
 	autoStash = true
 	updateRefs = true
+[credential]
+	helper = 
+	helper = /usr/local/share/gcm-core/git-credential-manager
+[credential "https://dev.azure.com"]
+	useHttpPath = true
