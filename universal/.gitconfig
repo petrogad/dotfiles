@@ -1,10 +1,13 @@
-[url "ssh://git@github.com/"]
-	insteadOf = https://github.com/
-[url "git@github.com:"]
-	insteadOf = https://github.com/
 [user]
 	name = Pete
 	email = petrogad@gmail.com
+
+
+[url "ssh://git@github.com/"]
+	insteadOf = https://github.com/
+[alias]
+  ca = commit --amend --reuse-message=HEAD
+  clone-wt = "!sh $HOME/.local/bin/clone-for-wt"
 
 [filter "lfs"]
 	clean = git-lfs clean -- %f

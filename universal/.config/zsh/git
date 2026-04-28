@@ -34,3 +34,13 @@ gstashpull() {
   git pull --rebase
   git stash pop
 }
+
+
+worktree() {
+  local dir
+  dir=$(_worktree "$@") && cd "$dir"
+}
+
+worktree-rm() {
+  _worktree-rm "$@"
+}
