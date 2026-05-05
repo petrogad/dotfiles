@@ -12,6 +12,11 @@ twork-init() {
     'run-shell "if [ \"$(tmux show-environment -t runtime TWORK_SYNCING 2>/dev/null)\" != \"TWORK_SYNCING=1\" ]; then tmux set-environment -t agent TWORK_SYNCING 1; tmux select-window -t agent:#{window_name} 2>/dev/null; tmux set-environment -t agent -u TWORK_SYNCING; fi"'
   tmux set-hook -t agent after-select-window \
     'run-shell "if [ \"$(tmux show-environment -t agent TWORK_SYNCING 2>/dev/null)\" != \"TWORK_SYNCING=1\" ]; then tmux set-environment -t runtime TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux set-environment -t runtime -u TWORK_SYNCING; fi"'
+  # Strip Claude status indicators (✓/?) from the focused window name
+  tmux set-hook -a -t runtime after-select-window \
+    'run-shell "~/.claude/hooks/tmux-clear-indicator.sh"'
+  tmux set-hook -a -t agent after-select-window \
+    'run-shell "~/.claude/hooks/tmux-clear-indicator.sh"'
   _twork_needs_cleanup=1
 }
 
