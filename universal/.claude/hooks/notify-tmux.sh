@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# Claude Code hook: rename tmux window with status indicator on
-# UserPromptSubmit/Stop/Notification, and (when unfocused) ring the bell + macOS banner.
+# Claude Code hook: surface Claude's state in the tmux window name + bell flag.
+# UserPromptSubmit  → window name gets a "⠋" (working) prefix, no bell.
+# Stop              → indicator stripped; bell rings in both twork sessions
+#                     (tmux's monitor-bell flag turns the window red until focused).
+# Notification      → window name gets a "?" (needs input) prefix; bell rings.
+# Indicators are intentionally space-less ("⠋myproj") so the existing twork
+# after-select-window sync hook still parses the window-name target as a
+# single shell token.
 set -u
 
-WORKING="⠋"   # in-progress
-DONE="✓"      # finished
-INPUT="?"     # awaiting input
+WORKING="⠋"
+INPUT="?"
 
 payload="$(cat)"
 event="$(printf '%s' "$payload" | jq -r '.hook_event_name // "Stop"' 2>/dev/null || echo Stop)"
@@ -15,14 +20,13 @@ project="$(basename "$cwd")"
 
 strip_indicator() {
   local n="$1"
-  n="${n#"$WORKING" }"
-  n="${n#"$DONE" }"
-  n="${n#"$INPUT" }"
+  n="${n#"$WORKING"}"
+  n="${n#"$INPUT"}"
   printf '%s' "$n"
 }
 
 # Rename matching-named windows across the runtime + agent twork sessions so
-# the indicator shows wherever the user is attached.
+# the indicator (or its absence) shows wherever the user is attached.
 rename_in_sessions() {
   local target="$1" newname="$2" session wid wname clean
   for session in runtime agent; do
@@ -35,21 +39,39 @@ rename_in_sessions() {
   done
 }
 
+# Write a BEL byte to the first pane's tty in each matching window. tmux's
+# monitor-bell watches pane output for BEL and sets the window-bell flag,
+# which window-status-bell-style renders red until the window is focused.
+ring_bell_in_sessions() {
+  local target="$1" session wid wname clean tty
+  for session in runtime agent; do
+    while IFS=' ' read -r wid wname; do
+      clean="$(strip_indicator "$wname")"
+      if [ "$clean" = "$target" ]; then
+        tty="$(tmux list-panes -t "$wid" -F '#{pane_tty}' 2>/dev/null | head -n1)"
+        [ -n "$tty" ] && [ -w "$tty" ] && printf '\a' >"$tty" 2>/dev/null
+      fi
+    done < <(tmux list-windows -t "$session" -F '#{window_id} #W' 2>/dev/null)
+  done
+}
+
+clean_current=""
 if [ -n "${TMUX:-}" ] && [ -n "${TMUX_PANE:-}" ]; then
   current="$(tmux display-message -p -t "$TMUX_PANE" '#W' 2>/dev/null || true)"
   clean_current="$(strip_indicator "$current")"
   case "$event" in
-    UserPromptSubmit) rename_in_sessions "$clean_current" "$WORKING $clean_current" ;;
-    Stop)             rename_in_sessions "$clean_current" "$DONE $clean_current" ;;
-    Notification)     rename_in_sessions "$clean_current" "$INPUT $clean_current" ;;
+    UserPromptSubmit) rename_in_sessions "$clean_current" "$WORKING$clean_current" ;;
+    Stop)             rename_in_sessions "$clean_current" "$clean_current" ;;
+    Notification)     rename_in_sessions "$clean_current" "$INPUT$clean_current" ;;
   esac
 fi
 
-# UserPromptSubmit only updates the window — no bell or banner (you just hit enter).
+# UserPromptSubmit only updates the window — no bell, no banner.
 [ "$event" = "UserPromptSubmit" ] && exit 0
 
-# Bell on the controlling terminal so monitor-bell flags non-current windows.
-printf '\a' >/dev/tty 2>/dev/null || true
+# Ring the bell on the matching window in BOTH sessions so the red flag
+# shows wherever the user is attached.
+[ -n "$clean_current" ] && ring_bell_in_sessions "$clean_current"
 
 # macOS banner — only when this pane is NOT the active pane of an attached client.
 ctx="$project"
