@@ -1,17 +1,34 @@
 # Claude Code dotfiles
 
-Stowed bits of `~/.claude/`. Currently just one thing: a tmux idle-pane notifier.
+Stowed bits of `~/.claude/`. Two scripts that work together with the twork tmux setup to surface Claude's state at a glance.
+
+## What you see
+
+The tmux window name picks up a status indicator while Claude is running:
+
+| Glyph | State | Set on |
+|---|---|---|
+| `⠋` | working | `UserPromptSubmit` |
+| `✓` | finished | `Stop` |
+| `?` | needs input | `Notification` |
+
+The same indicator is mirrored across the matching window in both `runtime` and `agent` twork sessions, so you see the state regardless of which one you're attached to.
+
+Focusing a window in the `✓` or `?` state strips the prefix back to the original name. The `⠋` working state is left alone — focusing while Claude is still thinking doesn't change anything.
 
 ## `hooks/notify-tmux.sh`
 
-Wired to Claude Code's `Stop` (turn finished) and `Notification` (awaiting input) hooks. When either fires:
+Wired to `UserPromptSubmit`, `Stop`, and `Notification`. On every event it updates the window name across both twork sessions. Then:
 
-- Always rings the tmux bell on the originating pane's terminal (`\a` to `/dev/tty`). Combined with `monitor-bell on` in `~/.config/tmux/tmux.conf.user`, this flags the window in the status line whenever it isn't the one you're looking at.
-- If the pane is **not** the currently-focused pane in any attached tmux client, also fires a macOS banner via `osascript`. Two tones:
-  - `Stop` → "Claude finished" + Glass sound
-  - `Notification` → "Claude needs input" + Funk sound (more urgent — agent is stalled)
+- **`UserPromptSubmit`** — silent. No bell, no banner. (You just hit enter; you don't need notified.)
+- **`Stop`** — bell + "Claude finished" banner with the Hero sound.
+- **`Notification`** — bell + "Claude needs input" banner with the Hero sound.
 
-The active-pane suppression keeps the pane you're actively working in quiet — no banner spam while you can already see the response.
+The bell rings on the originating pane's terminal (`\a` to `/dev/tty`) — combined with `monitor-bell on` in `~/.config/tmux/tmux.conf.user`, this flags non-focused windows in the status line. The macOS banner is suppressed when the originating pane is the currently-focused pane in any attached client (no banner spam while you're already looking at the response).
+
+## `hooks/tmux-clear-indicator.sh`
+
+Wired into tmux's `after-select-window` hook by `twork-init` (in `~/.config/zsh/tmux`). Strips `✓ ` or `? ` prefixes from the focused window's name in both sessions.
 
 ## One-time setup per machine
 
@@ -20,6 +37,9 @@ The active-pane suppression keeps the pane you're actively working in quiet — 
 ```json
 {
   "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "~/.claude/hooks/notify-tmux.sh" }] }
+    ],
     "Stop": [
       { "hooks": [{ "type": "command", "command": "~/.claude/hooks/notify-tmux.sh" }] }
     ],
@@ -34,15 +54,20 @@ Or with `jq`:
 
 ```bash
 jq '.hooks = {
+  UserPromptSubmit: [{ hooks: [{ type: "command", command: "~/.claude/hooks/notify-tmux.sh" }] }],
   Stop: [{ hooks: [{ type: "command", command: "~/.claude/hooks/notify-tmux.sh" }] }],
   Notification: [{ hooks: [{ type: "command", command: "~/.claude/hooks/notify-tmux.sh" }] }]
 }' ~/.claude/settings.json > ~/.claude/settings.json.new && mv ~/.claude/settings.json.new ~/.claude/settings.json
 ```
 
+If you already have twork sessions running when you pull this change, the `after-select-window` hook for clearing indicators won't be installed on them. Either restart tmux (`twork-nuke && start a new project`) or manually run the same `tmux set-hook -a ...` commands from `twork-init` against the live sessions.
+
 ## Smoke test
 
 ```bash
-echo '{"hook_event_name":"Stop","cwd":"'"$PWD"'"}' | ~/.claude/hooks/notify-tmux.sh
+echo '{"hook_event_name":"UserPromptSubmit","cwd":"'"$PWD"'"}' | ~/.claude/hooks/notify-tmux.sh
+echo '{"hook_event_name":"Stop","cwd":"'"$PWD"'"}'             | ~/.claude/hooks/notify-tmux.sh
+echo '{"hook_event_name":"Notification","cwd":"'"$PWD"'"}'     | ~/.claude/hooks/notify-tmux.sh
 ```
 
-From a non-active tmux pane: window flags red in the status line + macOS banner pops. From the active pane: bell only, no banner.
+From inside a tmux pane, each event should flip the indicator on the current window in both runtime + agent sessions. Stop/Notification also bell + banner (when unfocused). UserPromptSubmit is silent.
