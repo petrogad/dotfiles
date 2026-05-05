@@ -28,14 +28,6 @@ alias grm='git branch --merged | egrep -v "(^\*|master|dev)" | xargs git branch 
 # Pretty one-line log with graph, colors, relative dates, and author
 alias gl="git log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
 
-# Stash current changes, pull with rebase, then restore stash
-gstashpull() {
-  git stash push -m "auto-stash-$(date +%s)"
-  git pull --rebase
-  git stash pop
-}
-
-
 worktree() {
   local dir
   dir=$(_worktree "$@") && cd "$dir"

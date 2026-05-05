@@ -87,15 +87,10 @@ _dev_add_project() {
     tmux send-keys -t "${rt_panes[$i]}" "${commands[$i]}" C-m
   done
 
-  # --- Agent window: claude (top 70%) + shell (bottom 30%) ---
+  # --- Agent window: claude ---
   local ag_wid
   ag_wid=$(tmux new-window -t agent -n "$name" -c "$root" -P -F '#{window_id}')
-  tmux split-window -t "$ag_wid" -v -p 30 -c "$root"
-
-  local ag_panes
-  ag_panes=(${(f)"$(tmux list-panes -t "$ag_wid" -F '#{pane_id}')"})
-  tmux send-keys -t "${ag_panes[1]}" "yolo" C-m
-  tmux send-keys -t "${ag_panes[2]}" "ls" C-m
+  tmux send-keys -t "$ag_wid" "ls" C-m
 
   # Clean up default empty windows from twork-init
   if [[ "$_twork_needs_cleanup" -eq 1 ]]; then

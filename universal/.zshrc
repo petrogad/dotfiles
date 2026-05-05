@@ -54,6 +54,9 @@ case $(uname) in
             *) export PATH="$PNPM_HOME:$PATH" ;;
         esac
 
+        export RBX_LOCAL_NUGET_FEED=/Users/${USER}/.rbx/LocalNuGetRepo
+        export RBX_GITHUB_USER=pcarr
+
         # WezTerm CLI
         export PATH="$PATH:/Applications/WezTerm.app/Contents/MacOS"
 
