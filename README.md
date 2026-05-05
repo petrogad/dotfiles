@@ -4,6 +4,8 @@ My personal dotfiles, managed with [GNU Stow](https://www.gnu.org/software/stow/
 
 This README is the cheat sheet for **what to do when I sit down at a new (or another) computer**.
 
+> Heavily inspired by [alexciarlillo/dotfiles](https://github.com/alexciarlillo/dotfiles) — huge kudos to Alex, whose setup was the starting point for this one.
+
 ---
 
 ## TL;DR — common scenarios
