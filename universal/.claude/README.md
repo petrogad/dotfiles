@@ -4,31 +4,31 @@ Stowed bits of `~/.claude/`. Two scripts that work together with the twork tmux 
 
 ## What you see
 
-The tmux window name picks up a status indicator while Claude is running:
+The tmux window name reflects Claude's state, mirrored across the matching window in both `runtime` and `agent` twork sessions:
 
-| Glyph | State | Set on |
+| State | Window name | How it clears |
 |---|---|---|
-| `⠋` | working | `UserPromptSubmit` |
-| `✓` | finished | `Stop` |
-| `?` | needs input | `Notification` |
+| working | `⠋myproject` | flips to `myproject` on `Stop` |
+| done | `myproject` + window flagged red | red flag clears when you focus the window |
+| needs input | `?myproject` + window flagged red | both clear when you focus the window |
 
-The same indicator is mirrored across the matching window in both `runtime` and `agent` twork sessions, so you see the state regardless of which one you're attached to.
+The "red flag" is tmux's built-in `monitor-bell` flag — `notify-tmux.sh` writes a BEL byte to a pane in each matching window, which `window-status-bell-style` (in `~/.config/tmux/tmux.conf.user`) renders as a red, reversed window-status entry. tmux clears the flag automatically the next time the window is selected. No glyph for "done" — the red flag is enough.
 
-Focusing a window in the `✓` or `?` state strips the prefix back to the original name. The `⠋` working state is left alone — focusing while Claude is still thinking doesn't change anything.
+The `⠋` working glyph is intentionally space-less so the existing `after-select-window` sync hook in `twork-init` parses `agent:#{window_name}` as a single shell token. Spaces in the prefix would split it.
 
 ## `hooks/notify-tmux.sh`
 
-Wired to `UserPromptSubmit`, `Stop`, and `Notification`. On every event it updates the window name across both twork sessions. Then:
+Wired to `UserPromptSubmit`, `Stop`, and `Notification`:
 
-- **`UserPromptSubmit`** — silent. No bell, no banner. (You just hit enter; you don't need notified.)
-- **`Stop`** — bell + "Claude finished" banner with the Hero sound.
-- **`Notification`** — bell + "Claude needs input" banner with the Hero sound.
+- **`UserPromptSubmit`** — adds `⠋` prefix in both sessions. Silent (no bell, no banner — you just hit enter).
+- **`Stop`** — strips any prefix in both sessions, rings the bell on a pane in each matching window, fires a "Claude finished" macOS banner with the Hero sound when unfocused.
+- **`Notification`** — adds `?` prefix in both sessions, rings the bell, fires a "Claude needs input" banner.
 
-The bell rings on the originating pane's terminal (`\a` to `/dev/tty`) — combined with `monitor-bell on` in `~/.config/tmux/tmux.conf.user`, this flags non-focused windows in the status line. The macOS banner is suppressed when the originating pane is the currently-focused pane in any attached client (no banner spam while you're already looking at the response).
+The macOS banner is suppressed when the originating pane is the currently-focused pane in any attached client (no banner spam while you're already looking at the response).
 
 ## `hooks/tmux-clear-indicator.sh`
 
-Wired into tmux's `after-select-window` hook by `twork-init` (in `~/.config/zsh/tmux`). Strips `✓ ` or `? ` prefixes from the focused window's name in both sessions.
+Wired into tmux's `after-select-window` hook by `twork-init` (in `~/.config/zsh/tmux`). Strips the `?` prefix from the focused window's name in both sessions. Working `⠋` is left alone — focusing while Claude is still thinking doesn't stop it. Done has no glyph to handle.
 
 ## One-time setup per machine
 
