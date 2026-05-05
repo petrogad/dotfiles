@@ -54,9 +54,6 @@ case $(uname) in
             *) export PATH="$PNPM_HOME:$PATH" ;;
         esac
 
-        export WORK_LOCAL_NUGET_FEED=/Users/${USER}/.work/LocalNuGetRepo
-        export WORK_GITHUB_USER=user
-
         # WezTerm CLI
         export PATH="$PATH:/Applications/WezTerm.app/Contents/MacOS"
 
@@ -76,7 +73,6 @@ esac
 [ -f ~/.config/zsh/aliases ] && . ~/.config/zsh/aliases
 [ -f ~/.config/zsh/git ]     && . ~/.config/zsh/git
 [ -f ~/.config/zsh/tmux ]    && . ~/.config/zsh/tmux
-[ -f ~/.config/zsh/work ]     && . ~/.config/zsh/work
 
 # -- Local overrides (not tracked in dotfiles) ---------------------------------
 
