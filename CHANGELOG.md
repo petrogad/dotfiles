@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — short description`. Group related changes under one date
 
 ## 2026-05-05
 
+- `twork-new` no longer auto-launches `yolo` (claude) in the agent window — single `ls` pane instead, matching the behavior `_dev_add_project` was updated to in commit 4174054. The split-pane + auto-yolo pattern was missed by that earlier change.
 - Anchored `.gitignore` `.claude` rule to the repo root (`/.claude/`) so `universal/.claude/` is no longer ignored. The Claude Code tmux notify hook (`notify-tmux.sh`) and its README were silently untracked, which is why fresh machines never got `~/.claude/hooks/notify-tmux.sh` after `make osx`. Begin tracking `universal/.claude/`.
 - Added `CHANGELOG.md` and wired it into `CLAUDE.md` so future changes get recorded.
 - Credited [alexciarlillo/dotfiles](https://github.com/alexciarlillo/dotfiles) in the README as the inspiration for this setup.
