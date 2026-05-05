@@ -39,8 +39,15 @@ setw -g aggressive-resize off
 setw -g mode-keys vi
 
 set -g detach-on-destroy off
+
+# -- Activity / bell monitoring (used by Claude Code Stop/Notification hooks) -
 setw -g monitor-activity off
 set -g visual-activity off
+
+set -g monitor-bell on
+set -g bell-action any
+set -g visual-bell off
+setw -g window-status-bell-style 'fg=#f38ba8,bold,reverse'
 
 # -- Pane / window creation ----------------------------------------------------
 
