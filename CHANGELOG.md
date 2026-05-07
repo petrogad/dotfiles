@@ -4,6 +4,10 @@ All notable changes to this dotfiles repo. Newest entries on top.
 
 Format: `YYYY-MM-DD — short description`. Group related changes under one date.
 
+## 2026-05-07
+
+- `notify-tmux.sh` no longer depends on `$TMUX` / `$TMUX_PANE` being inherited — some sandboxed harnesses don't propagate them, which silently no-op'd the window-rename and bell branches. Target pane is identified by matching `pane_current_command ∈ {declawd, claude, node}` + `pane_current_path == cwd` (from the hook payload), so manually renamed tmux windows still get tracked. Falls back to `basename(cwd)` when no pane uniquely matches (preserves prior behavior when twork naming is intact). Banner-suppression check uses `tmux list-clients -F '#{window_id}'` to see whether any attached client is already looking at a matching window. Bash-3.2-safe (no `declare -A`).
+
 ## 2026-05-05
 
 - Moved work-specific shell helpers and a couple of related env exports out of the tracked dotfiles and into `~/.zshrc.local`, which `.zshrc` already sources and `.stow-local-ignore` deliberately keeps out of the repo. Keeps machine-specific identifiers off the public history going forward.
