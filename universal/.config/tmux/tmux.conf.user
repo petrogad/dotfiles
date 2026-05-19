@@ -44,10 +44,12 @@ set -g detach-on-destroy off
 setw -g monitor-activity off
 set -g visual-activity off
 
-set -g monitor-bell on
-set -g bell-action any
+# Bell-based notifications: Claude hook writes BEL to panes when a run stops
+# or needs input. Flag flips the window-status entry red until focused.
+setw -g monitor-bell on
+set -g bell-action other
 set -g visual-bell off
-setw -g window-status-bell-style 'fg=#f38ba8,bold,reverse'
+setw -g window-status-bell-style 'fg=red,reverse,bold'
 
 # -- Pane / window creation ----------------------------------------------------
 
