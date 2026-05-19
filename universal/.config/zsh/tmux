@@ -4,19 +4,21 @@
 
 # Initialize the three tmux sessions with bidirectional window sync
 twork-init() {
-  tmux new-session -d -s runtime
-  tmux new-session -d -s agent
-  tmux new-session -d -s adhoc
-  # Bidirectional sync with loop guard using an environment variable
+  tmux new-session -d -s runtime -n home # runtime session (neovim, etc.)
+  tmux new-session -d -s agent -n home # agent session (agents)
+  tmux new-session -d -s adhoc -n home # Adhoc session (misc tasks)
+  # Three-way sync: each hook checks its OWN guard flag to break the loop
   tmux set-hook -t runtime after-select-window \
-    'run-shell "if [ \"$(tmux show-environment -t runtime TWORK_SYNCING 2>/dev/null)\" != \"TWORK_SYNCING=1\" ]; then tmux set-environment -t agent TWORK_SYNCING 1; tmux select-window -t agent:#{window_name} 2>/dev/null; tmux set-environment -t agent -u TWORK_SYNCING; fi"'
+    'run-shell "if [ \"$(tmux show-environment -t runtime TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t runtime -u TWORK_SYNCING; else tmux set-environment -t agent TWORK_SYNCING 1; tmux set-environment -t adhoc TWORK_SYNCING 1; tmux select-window -t agent:#{window_name} 2>/dev/null; tmux select-window -t adhoc:#{window_name} 2>/dev/null; fi"'
   tmux set-hook -t agent after-select-window \
-    'run-shell "if [ \"$(tmux show-environment -t agent TWORK_SYNCING 2>/dev/null)\" != \"TWORK_SYNCING=1\" ]; then tmux set-environment -t runtime TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux set-environment -t runtime -u TWORK_SYNCING; fi"'
+    'run-shell "if [ \"$(tmux show-environment -t agent TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t agent -u TWORK_SYNCING; else tmux set-environment -t runtime TWORK_SYNCING 1; tmux set-environment -t adhoc TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux select-window -t adhoc:#{window_name} 2>/dev/null; fi"'
+  tmux set-hook -t adhoc after-select-window \
+    'run-shell "if [ \"$(tmux show-environment -t adhoc TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t adhoc -u TWORK_SYNCING; else tmux set-environment -t runtime TWORK_SYNCING 1; tmux set-environment -t agent TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux select-window -t agent:#{window_name} 2>/dev/null; fi"'
   # Strip Claude status indicators (✓/?) from the focused window name
-  tmux set-hook -a -t runtime after-select-window \
-    'run-shell "~/.claude/hooks/tmux-clear-indicator.sh"'
-  tmux set-hook -a -t agent after-select-window \
-    'run-shell "~/.claude/hooks/tmux-clear-indicator.sh"'
+  for s in runtime agent adhoc; do
+    tmux set-hook -at "$s" after-select-window \
+      'run-shell "~/.claude/hooks/tmux-clear-indicator.sh"'
+  done
   _twork_needs_cleanup=1
 }
 
@@ -35,29 +37,84 @@ twork-adhoc()   { tmux attach-session -t adhoc; }
 # List active project windows
 twork-ls() { tmux list-windows -t runtime -F '#{window_name}'; }
 
-# Add a simple project (single runtime pane + agent with claude)
+# Sync the current pane's working directory to the matching window in the
+# paired sessions. Optionally pass a window name; defaults to current window.
+twork-sync() {
+  local current_session
+  current_session="$(tmux display-message -p '#{session_name}')"
+
+  local -a target_sessions
+  case "$current_session" in
+    runtime) target_sessions=(agent adhoc) ;;
+    agent)   target_sessions=(runtime adhoc) ;;
+    adhoc)   target_sessions=(runtime agent) ;;
+    *)
+      echo "twork-sync: must be run from the runtime, agent, or adhoc session" >&2
+      return 1
+      ;;
+  esac
+
+  local win="${1:-$(tmux display-message -p '#{window_name}')}"
+  local dir
+  dir="$(tmux display-message -p '#{pane_current_path}')"
+
+  local ts
+  for ts in "${target_sessions[@]}"; do
+    if tmux select-window -t "$ts:$win" 2>/dev/null; then
+      tmux send-keys -t "$ts:$win" "cd ${(q)dir}" Enter
+    fi
+  done
+}
+
+# Add a simple project (paired windows in all three sessions)
+# Usage: twork-new [<path>]  or  twork-new <name> <path>
 twork-new() {
-  local dir="${2:-$(pwd)}"
-  local name="${1:-$(basename "$dir")}"
+  local name dir
+  if [[ -n "$2" ]]; then
+    name="$1"
+    dir="$2"
+  elif [[ -n "$1" ]]; then
+    dir="$1"
+    name="$(basename "$dir")"
+  else
+    dir="$(pwd)"
+    name="$(basename "$dir")"
+  fi
+  dir="${dir:a}"
 
   if ! tmux has-session -t runtime 2>/dev/null; then
     twork-init
   fi
 
-  tmux new-window -t runtime -n "$name" -c "$dir"
+  tmux new-window -t adhoc -n "$name" -c "$dir"
 
   local ag_wid
   ag_wid=$(tmux new-window -t agent -n "$name" -c "$dir" -P -F '#{window_id}')
   tmux send-keys -t "$ag_wid" "ls" C-m
 
+  tmux new-window -t runtime -n "$name" -c "$dir"
   tmux select-window -t "runtime:$name"
 }
 
-# Close a project (both runtime and agent windows)
+# Close a project (all three session windows, killing own session's window last)
 twork-close() {
-  local name="${1:-$(tmux display-message -t runtime -p '#{window_name}')}"
-  tmux kill-window -t "runtime:$name" 2>/dev/null
-  tmux kill-window -t "agent:$name" 2>/dev/null
+  local current_session
+  current_session="$(tmux display-message -p '#{session_name}')"
+  local name="${1:-$(tmux display-message -p '#{window_name}')}"
+
+  local -a others
+  case "$current_session" in
+    runtime) others=(agent adhoc) ;;
+    agent)   others=(runtime adhoc) ;;
+    adhoc)   others=(runtime agent) ;;
+    *)       others=(runtime agent adhoc) ;;
+  esac
+
+  local s
+  for s in "${others[@]}"; do
+    tmux kill-window -t "$s:$name" 2>/dev/null
+  done
+  tmux kill-window -t "$current_session:$name" 2>/dev/null
 }
 
 # Add a project with a custom multi-pane layout in the runtime window
@@ -93,10 +150,14 @@ _dev_add_project() {
   ag_wid=$(tmux new-window -t agent -n "$name" -c "$root" -P -F '#{window_id}')
   tmux send-keys -t "$ag_wid" "ls" C-m
 
+  # --- Adhoc window ---
+  tmux new-window -t adhoc -n "$name" -c "$root"
+
   # Clean up default empty windows from twork-init
   if [[ "$_twork_needs_cleanup" -eq 1 ]]; then
     tmux kill-window -t "runtime:1" 2>/dev/null
     tmux kill-window -t "agent:1" 2>/dev/null
+    tmux kill-window -t "adhoc:1" 2>/dev/null
     _twork_needs_cleanup=0
   fi
 
