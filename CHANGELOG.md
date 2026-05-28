@@ -4,6 +4,10 @@ All notable changes to this dotfiles repo. Newest entries on top.
 
 Format: `YYYY-MM-DD — short description`. Group related changes under one date.
 
+## 2026-05-27
+
+- Restored the executable bit on `universal/.local/bin/clean-merged-wt`. The file got committed mode `0644`, so calling it directly (`clean-merged-wt`) hit `zsh: permission denied`. The `git clean-wt` alias still worked because it invokes the script with `sh`, which doesn't need `+x`.
+
 ## 2026-05-07
 
 - `notify-tmux.sh` no longer depends on `$TMUX` / `$TMUX_PANE` being inherited — some sandboxed harnesses don't propagate them, which silently no-op'd the window-rename and bell branches. Target pane is identified by matching `pane_current_command ∈ {declawd, claude, node}` + `pane_current_path == cwd` (from the hook payload), so manually renamed tmux windows still get tracked. Falls back to `basename(cwd)` when no pane uniquely matches (preserves prior behavior when twork naming is intact). Banner-suppression check uses `tmux list-clients -F '#{window_id}'` to see whether any attached client is already looking at a matching window. Bash-3.2-safe (no `declare -A`).
