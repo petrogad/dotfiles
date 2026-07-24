@@ -13,7 +13,7 @@ This README is the cheat sheet for **what to do when I sit down at a new (or ano
 ### I'm on a brand new computer
 
 ```bash
-git clone ssh://git@github.com/petrogad/dotfiles.git ~/github/dotfiles
+git clone https://github.com/petrogad/dotfiles.git ~/github/dotfiles
 cd ~/github/dotfiles
 make backup          # safe — does nothing if there's nothing to back up
 make init            # installs brew/apt packages from extra/homebrew or extra/apt

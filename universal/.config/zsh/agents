@@ -1,0 +1,12 @@
+# -- Agent directories ---------------------------------------------------------
+
+export AGENT_HANDOFF_DIR="$HOME/agents/handoffs"
+export AGENT_PLANS_DIR="$HOME/agents/plans"
+export AGENT_RESEARCH_DIR="$HOME/agents/research"
+export AGENT_READY_WORK_DIR="$HOME/agents/ready-work"
+
+# Ensure they exist
+[[ -d "$AGENT_HANDOFF_DIR" ]]    || mkdir -p "$AGENT_HANDOFF_DIR"
+[[ -d "$AGENT_PLANS_DIR" ]]      || mkdir -p "$AGENT_PLANS_DIR"
+[[ -d "$AGENT_RESEARCH_DIR" ]]   || mkdir -p "$AGENT_RESEARCH_DIR"
+[[ -d "$AGENT_READY_WORK_DIR" ]] || mkdir -p "$AGENT_READY_WORK_DIR"
