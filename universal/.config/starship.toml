@@ -1,6 +1,8 @@
 "$schema" = 'https://starship.rs/config-schema.json'
 
 format = """
+$username\
+$hostname\
 $directory\
 $git_branch\
 $git_status\
@@ -12,6 +14,18 @@ $docker_context\
 $cmd_duration\
 $line_break\
 $character"""
+
+[username]
+# Only shown over SSH (or as root); pairs with the hostname module below
+show_always = false
+format = '[$user]($style)[@](dimmed)'
+style_user = 'bold yellow'
+
+[hostname]
+ssh_only = true
+format = '[$ssh_symbol$hostname]($style) '
+ssh_symbol = '🌐 '
+style = 'bold yellow'
 
 [character]
 success_symbol = '[❯](bold green)'
