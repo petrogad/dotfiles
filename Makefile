@@ -30,6 +30,7 @@ BACKUP_TARGETS := \
 	$(HOME)/.config/lazygit/shell_init.sh \
 	$(HOME)/.config/linearmouse/linearmouse.json \
 	$(HOME)/.config/zsh/aliases \
+	$(HOME)/.config/zsh/agents \
 	$(HOME)/.config/zsh/git \
 	$(HOME)/.config/zsh/tmux \
 	$(HOME)/.config/tmux/tmux.conf.user \
