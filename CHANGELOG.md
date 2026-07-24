@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — short description`. Group related changes under one date
 
 ## 2026-05-27
 
+- Silenced the spammy `'if [ "$(tmux show-environment ...)" ...]; ... fi' returned 1` banner that fired across attached clients on every window switch. The `after-select-window` sync hooks in `universal/.config/zsh/tmux` end with `tmux select-window -t <sibling>:<name> 2>/dev/null` — `2>/dev/null` hides stderr but tmux's `run-shell` still surfaces the non-zero exit code in every client's message line whenever a sibling session lacks the named window. Appended `; true` to each of the three hook bodies so the script always returns 0. To apply in a live session, run `twork-init`'s `tmux set-hook -t <session> after-select-window ...` lines manually or rerun `twork-init` after `twork-nuke`.
 - Restored the executable bit on `universal/.local/bin/clean-merged-wt`. The file got committed mode `0644`, so calling it directly (`clean-merged-wt`) hit `zsh: permission denied`. The `git clean-wt` alias still worked because it invokes the script with `sh`, which doesn't need `+x`.
 
 ## 2026-05-07
