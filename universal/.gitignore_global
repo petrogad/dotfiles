@@ -16,3 +16,4 @@ Desktop.ini
 
 # Environment
 .env.local
+**/.claude/settings.local.json

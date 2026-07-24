@@ -8,12 +8,15 @@ twork-init() {
   tmux new-session -d -s agent -n home # agent session (agents)
   tmux new-session -d -s adhoc -n home # Adhoc session (misc tasks)
   # Three-way sync: each hook checks its OWN guard flag to break the loop
+  # Trailing `; true` keeps the hook's exit code 0 — otherwise a missing sibling
+  # window makes `select-window` return 1 and tmux blasts "... returned 1" into
+  # every client's message line.
   tmux set-hook -t runtime after-select-window \
-    'run-shell "if [ \"$(tmux show-environment -t runtime TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t runtime -u TWORK_SYNCING; else tmux set-environment -t agent TWORK_SYNCING 1; tmux set-environment -t adhoc TWORK_SYNCING 1; tmux select-window -t agent:#{window_name} 2>/dev/null; tmux select-window -t adhoc:#{window_name} 2>/dev/null; fi"'
+    'run-shell "if [ \"$(tmux show-environment -t runtime TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t runtime -u TWORK_SYNCING; else tmux set-environment -t agent TWORK_SYNCING 1; tmux set-environment -t adhoc TWORK_SYNCING 1; tmux select-window -t agent:#{window_name} 2>/dev/null; tmux select-window -t adhoc:#{window_name} 2>/dev/null; fi; true"'
   tmux set-hook -t agent after-select-window \
-    'run-shell "if [ \"$(tmux show-environment -t agent TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t agent -u TWORK_SYNCING; else tmux set-environment -t runtime TWORK_SYNCING 1; tmux set-environment -t adhoc TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux select-window -t adhoc:#{window_name} 2>/dev/null; fi"'
+    'run-shell "if [ \"$(tmux show-environment -t agent TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t agent -u TWORK_SYNCING; else tmux set-environment -t runtime TWORK_SYNCING 1; tmux set-environment -t adhoc TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux select-window -t adhoc:#{window_name} 2>/dev/null; fi; true"'
   tmux set-hook -t adhoc after-select-window \
-    'run-shell "if [ \"$(tmux show-environment -t adhoc TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t adhoc -u TWORK_SYNCING; else tmux set-environment -t runtime TWORK_SYNCING 1; tmux set-environment -t agent TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux select-window -t agent:#{window_name} 2>/dev/null; fi"'
+    'run-shell "if [ \"$(tmux show-environment -t adhoc TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t adhoc -u TWORK_SYNCING; else tmux set-environment -t runtime TWORK_SYNCING 1; tmux set-environment -t agent TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux select-window -t agent:#{window_name} 2>/dev/null; fi; true"'
   # Strip Claude status indicators (✓/?) from the focused window name
   for s in runtime agent adhoc; do
     tmux set-hook -at "$s" after-select-window \
