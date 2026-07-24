@@ -73,6 +73,7 @@ esac
 [ -f ~/.config/zsh/aliases ] && . ~/.config/zsh/aliases
 [ -f ~/.config/zsh/git ]     && . ~/.config/zsh/git
 [ -f ~/.config/zsh/tmux ]    && . ~/.config/zsh/tmux
+[ -f ~/.config/zsh/agents ]  && . ~/.config/zsh/agents
 
 # -- Local overrides (not tracked in dotfiles) ---------------------------------
 

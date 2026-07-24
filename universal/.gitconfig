@@ -3,8 +3,6 @@
 	email = petrogad@gmail.com
 
 
-[url "ssh://git@github.com/"]
-	insteadOf = https://github.com/
 [alias]
   ca = commit --amend --reuse-message=HEAD
   clone-wt = "!sh $HOME/.local/bin/clone-for-wt"
