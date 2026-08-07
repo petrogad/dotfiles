@@ -40,6 +40,13 @@ config.keys = {
     mods = "CMD|SHIFT",
     action = wezterm.action.SplitPane({ direction = "Down" }),
   },
+  -- New tab already ssh'd into helios. Uses system ssh (not an ssh_domain) so
+  -- ~/.ssh/config applies: cloudflared ProxyCommand + ControlMaster reuse.
+  {
+    key = "h",
+    mods = "CMD|SHIFT",
+    action = wezterm.action.SpawnCommandInNewTab({ args = { "ssh", "helios" } }),
+  },
 }
 
 return config
