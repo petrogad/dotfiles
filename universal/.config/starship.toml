@@ -1,5 +1,9 @@
 "$schema" = 'https://starship.rs/config-schema.json'
 
+# Default 500ms trips on git's first run in a repo (core.fsmonitor spawns the
+# watcher daemon on demand), spamming timeout WARNs in fresh shells.
+command_timeout = 1500
+
 format = """
 $username\
 $hostname\
