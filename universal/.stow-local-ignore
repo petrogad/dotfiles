@@ -5,3 +5,11 @@ LICENSE
 # .agents is not plain-stowed; the `agents` target fans its skills into
 # ~/.agents/skills and ~/.claude/skills, and links AGENTS.md into ~/.agents.
 \.agents
+# znap-managed plugin clones (znap itself, ohmyzsh, zsh-users, lukechilds, ...)
+# are never stowed: with --no-folding stow would symlink their internals
+# file-by-file, .git included, half-breaking the clones. ~/.config/zsh becomes
+# a real dir and znap clones plugins straight into it on first shell startup.
+^/\.config/zsh/znap
+^/\.config/zsh/ohmyzsh
+^/\.config/zsh/zsh-users
+^/\.config/zsh/lukechilds
