@@ -74,7 +74,7 @@ find_my_window_name() {
   local want_cwd="$1" match_count=0 match_name="" wid wname cmd cpath
   while IFS='|' read -r wid wname cmd cpath; do
     case "$cmd" in
-      declawd|claude|node) ;;
+      claude|node) ;;
       *) continue ;;
     esac
     [ "$cpath" = "$want_cwd" ] || continue

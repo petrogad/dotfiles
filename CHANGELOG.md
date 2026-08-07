@@ -4,6 +4,19 @@ All notable changes to this dotfiles repo. Newest entries on top.
 
 Format: `YYYY-MM-DD — short description`. Group related changes under one date.
 
+## 2026-08-07
+
+- Tmux: added TPM plugin management to `tmux.conf.user` via the `@tpm_plugins` list (gpakosz's conf sources it through `if-shell`, so `set -g @plugin` entries are invisible to TPM) with `tmux-resurrect` + `tmux-continuum` — sessions auto-save every 10 min, capture pane contents, and auto-restore on server start — plus `alexciarlillo/tmux-agent-mgr`. TPM init runs at the very bottom of the file so plugin status-line hooks aren't clobbered by the Appearance block. New `make tpm` target clones TPM and installs plugins idempotently; `universal/.config/tmux/.gitignore` keeps `plugins/` out of git.
+- Tmux: `prefix C-f` opens a fuzzy session switcher popup (`universal/.local/bin/tmux-session-popup`, fzf-based, previews windows, most-recent first). `fzf` added to Brewfile.
+- Agents: added `universal/.agents/` — `AGENTS.md` (agent-agnostic standing instructions; Codex reads it natively, `~/.claude/CLAUDE.md` stubs import it) and the `research → plan → handoff → pickup` skill suite plus shared `agent-docs` conventions. New `make agents` target stows `AGENTS.md` into `~/.agents` and folds the skills as directory symlinks into both `~/.agents/skills` and `~/.claude/skills`. Removed the superseded `universal/.claude/skills/handoff`.
+- Agents: `~/agents` workspace now syncs between machines via a private GitHub repo (`petrogad/agents`). New git-based `universal/.local/bin/agent-sync` (commit → pull --rebase → push; lock-guarded, offline-safe, aborts and logs on rebase conflict) driven by a launchd agent every 15 min. The plist (`extra/launchd/com.pete.agent-sync.plist`) is a `__HOME__` template sed-substituted by the new `make agent-sync` target, since launchd expands no variables and usernames differ across machines.
+- Zsh: nvm switched from Homebrew to `znap source lukechilds/zsh-nvm` (lazy load, auto-`nvm use`, cross-platform); dropped `brew "nvm"` from the Brewfile. Added a generic `env.d`/`interactive.d` drop-in loader to `.zshrc`. Aliases: fuller `ssh-clean-mouse` escape reset + `stty sane`, new `fix` alias for garbled terminals, and `cyolo` (`codex --yolo`) alongside `yolo`.
+- Makefile: all stow calls now use `--no-folding`; `osx` target is `universal-dots agents osx-dots karabiner tpm agent-sync` (dropped the broken `hammerspoon-pre-dots` reference); `linux` is `universal-dots agents tpm`.
+- Git: added `[include] path = ~/.gitconfig.local` for machine-local config.
+- WezTerm: `Cmd+Shift+H` opens a tab ssh'd into helios via system ssh (honors `~/.ssh/config` ProxyCommand + ControlMaster).
+- Removed work-specific remnants: Roblox branch-prefixing logic in `_worktree`/`_worktree-rm` (inert without `RBX_GITHUB_USER`), and all `declawd` references (aliases yolo fallback, pre-commit agent chain, notify-tmux pane matcher).
+- `osx/.config/linearmouse/linearmouse.json`: updated to current schema with latest pointer settings.
+
 ## 2026-07-24
 
 - Added an SSH indicator to the Starship prompt: `$username$hostname` now lead the format in `universal/.config/starship.toml`, with `ssh_only = true` on hostname and default `show_always = false` on username. Locally the prompt is unchanged; over SSH it prefixes a bold-yellow `user@🌐 hostname`.

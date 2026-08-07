@@ -117,6 +117,33 @@ bind X confirm-before -p "kill-session #S? (y/n)" kill-session
 bind R source-file ~/.tmux.conf \; display-message "tmux reloaded"
 bind E new-window -n tmux-config "$EDITOR ~/.config/tmux/tmux.conf.user"
 
+# Fuzzy session switcher in a popup.
+bind C-f display-popup -E -w 60% -h 50% "~/.local/bin/tmux-session-popup"
+
+# -- Plugins (TPM) -------------------------------------------------------------
+# gpakosz's ~/.tmux.conf sources this file through an `if-shell`, so `set -g
+# @plugin` entries here are invisible to TPM. Use the space-separated
+# @tpm_plugins list instead, and set TMUX_PLUGIN_MANAGER_PATH explicitly (TPM
+# only defaults it when loaded from ~/.tmux.conf). Use $HOME, not ~ (TPM expands
+# $HOME).
+set-environment -g TMUX_PLUGIN_MANAGER_PATH "$HOME/.config/tmux/plugins/"
+# continuum must load LAST, so it's the final entry in the list.
+set -g @tpm_plugins 'tmux-plugins/tpm alexciarlillo/tmux-agent-mgr tmux-plugins/tmux-resurrect tmux-plugins/tmux-continuum'
+
+# Persist sessions across reboots.
+# resurrect saves windows/panes/layouts/cwd (+ scrollback) to
+# ~/.local/share/tmux/resurrect/; continuum auto-saves every 10 min and
+# auto-restores when the tmux server starts — so in the morning just run `tmux`.
+# Save/restore manually with `prefix C-s` / `prefix C-r`.
+set -g @resurrect-capture-pane-contents 'on'
+set -g @continuum-save-interval '10'
+set -g @continuum-restore 'on'
+
+# NOTE: `run '.../tpm'` is intentionally at the very BOTTOM of this file, not
+# here — see the end. Plugins that hook the status line (continuum's auto-save
+# via status-right, agent-mgr's window tab glyph) must load AFTER the Appearance
+# settings below, or those settings overwrite the hooks.
+
 # -- Appearance ----------------------------------------------------------------
 
 set -g status-position top
@@ -139,3 +166,9 @@ set -g pane-active-border-style 'fg=blue'
 set -g message-style 'bg=default,fg=default,bold'
 set -g message-command-style 'bg=default,fg=default,bold'
 set -g mode-style 'bg=blue,fg=black'
+
+# -- Initialize TPM — MUST be the last line ------------------------------------
+# Loads all @tpm_plugins. Kept at the very bottom so plugin hooks that append to
+# the status line — continuum's auto-save (status-right) and agent-mgr's tab
+# glyph (window-status-format) — aren't clobbered by the Appearance block above.
+run '$HOME/.config/tmux/plugins/tpm/tpm'

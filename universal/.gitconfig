@@ -61,3 +61,6 @@
 	helper = !gh auth git-credential
 [credential "https://dev.azure.com"]
 	useHttpPath = true
+
+[include]
+	path = ~/.gitconfig.local
