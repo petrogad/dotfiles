@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 #
 # Pre-commit hook: run an agent to review staged changes and update
-# CHANGELOG.md (and README.md when needed), then re-stage them into the
-# in-flight commit.
+# CHANGELOG.md, then re-stage it into the in-flight commit.
 #
 # Controls:
 #   SKIP_CHANGELOG_HOOK=1    Bypass the hook for a single commit.
-#   CHANGELOG_AGENT_CMD=...  Override the agent command (default: declawd).
+#   CHANGELOG_AGENT_CMD=...  Override the agent command (default: claude).
 #                            The command is invoked as: $CMD -p "<prompt>"
 #
 # You can also bypass with `git commit --no-verify`.
@@ -25,8 +24,6 @@ if [[ -z "$staged" ]]; then
   exit 0
 fi
 
-# Skip if the staged set is only CHANGELOG.md and/or README.md — lets you
-# hand-edit them without triggering the agent, and avoids any self-loop.
 non_doc_staged="$(printf '%s\n' "$staged" | grep -vE '^(CHANGELOG\.md|README\.md)$' || true)"
 if [[ -z "$non_doc_staged" ]]; then
   exit 0
@@ -34,18 +31,16 @@ fi
 
 if [[ -n "${CHANGELOG_AGENT_CMD:-}" ]]; then
   AGENT_CMD="$CHANGELOG_AGENT_CMD"
-elif command -v declawd >/dev/null 2>&1; then
-  AGENT_CMD="declawd"
 elif command -v claude >/dev/null 2>&1; then
   AGENT_CMD="claude"
 else
-  echo "pre-commit: neither 'declawd' nor 'claude' on PATH — skipping changelog update." >&2
+  echo "pre-commit: 'claude' not on PATH — skipping changelog update." >&2
   exit 0
 fi
 
 echo "pre-commit: running '$AGENT_CMD' to review staged changes and update CHANGELOG/README..."
 
-prompt='Review the staged changes in this commit (use `git diff --cached` and `git diff --cached --stat` to inspect them) and update CHANGELOG.md with a new entry describing what changed. Follow the existing CHANGELOG style: newest first, grouped under a `## YYYY-MM-DD` heading for today. If today already has a heading, append to it. If user-facing setup steps, commands, architecture, or tool integrations documented in README.md have changed, update README.md as well. Only modify CHANGELOG.md and README.md — do not touch any other files, do not run git commands that mutate state, and do not create a commit.'
+prompt='Review the staged changes in this commit (use `git diff --cached` and `git diff --cached --stat` to inspect them) and update CHANGELOG.md with a new entry describing what changed. Follow the existing CHANGELOG style: newest first, grouped under a `## YYYY-MM-DD` heading for today. If today already has a heading, append to it. Only modify CHANGELOG.md and README.md — do not touch any other files, do not run git commands that mutate state, and do not create a commit.'
 
 # shellcheck disable=SC2086
 $AGENT_CMD -p "$prompt"

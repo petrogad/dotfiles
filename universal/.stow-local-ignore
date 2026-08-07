@@ -2,3 +2,6 @@
 .+\.local
 README.*
 LICENSE
+# .agents is not plain-stowed; the `agents` target fans its skills into
+# ~/.agents/skills and ~/.claude/skills, and links AGENTS.md into ~/.agents.
+\.agents

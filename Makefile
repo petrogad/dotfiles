@@ -1,8 +1,7 @@
 DOTFILES := $(CURDIR)
-SPOONS_DIR := osx/.hammerspoon/Spoons
 UNAME := $(shell uname -s)
 
-.PHONY: init osx linux universal homebrew apt-packages hammerspoon-pre-dots bootstrap karabiner backup
+.PHONY: init osx linux universal-dots osx-dots agents agent-sync tpm homebrew apt-packages backup bootstrap karabiner
 
 # Bootstrap: ensure stow is installed before anything else
 bootstrap:
@@ -15,7 +14,6 @@ endif
 
 BACKUP_DIR := $(HOME)/dotfiles-backup/$(shell date +%Y%m%d-%H%M%S)
 
-# Files that stow will manage (add to this list as dotfiles grow)
 BACKUP_TARGETS := \
 	$(HOME)/.zshrc \
 	$(HOME)/.tmux.conf \
@@ -34,9 +32,11 @@ BACKUP_TARGETS := \
 	$(HOME)/.config/zsh/git \
 	$(HOME)/.config/zsh/tmux \
 	$(HOME)/.config/tmux/tmux.conf.user \
-	$(HOME)/.hammerspoon/init.lua
+	$(HOME)/.hammerspoon/init.lua \
+	$(HOME)/.agents/AGENTS.md \
+	$(HOME)/.local/bin/agent-sync \
+	$(HOME)/.local/bin/tmux-session-popup
 
-# Back up existing dotfiles before stow replaces them
 backup:
 	@mkdir -p "$(BACKUP_DIR)"
 	@for f in $(BACKUP_TARGETS); do \
@@ -59,29 +59,72 @@ init:
 	@exit 1
 endif
 
-osx: universal-dots hammerspoon-pre-dots osx-dots karabiner
+osx: universal-dots agents osx-dots karabiner tpm agent-sync
 
 osx-dots:
-	stow --restow --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" osx
+	stow --restow --no-folding --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" osx
+
+linux: universal-dots agents tpm
+
+universal-dots:
+	stow --restow --no-folding --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" universal
+
+# .agents is not plain-stowed (see universal/.stow-local-ignore). Skills must be
+# DIRECTORY symlinks — Codex ignores a real dir that merely contains a symlinked
+# SKILL.md — so the `skills` package is stowed WITH folding into both
+# ~/.agents/skills and ~/.claude/skills. AGENTS.md links into ~/.agents only.
+# ~/.claude/skills stays a real dir (owned by universal-dots), so folding just
+# our entries leaves any other skills alone.
+agents:
+	@agents_src="$(DOTFILES)/universal/.agents"; \
+	for target in "$(HOME)/.agents/skills" "$(HOME)/.claude/skills"; do \
+		mkdir -p "$$target"; \
+		for skill in "$$agents_src/skills"/*/; do \
+			s="$$(basename "$$skill")"; \
+			if [ -d "$$target/$$s" ] && [ ! -L "$$target/$$s" ]; then rm -rf "$$target/$$s"; fi; \
+		done; \
+	done; \
+	stow --restow --no-folding --ignore ".DS_Store" --ignore "skills" \
+		--target="$(HOME)/.agents" --dir="$(DOTFILES)/universal" .agents; \
+	stow --restow --ignore ".DS_Store" --target="$(HOME)/.agents/skills" --dir="$$agents_src" skills; \
+	stow --restow --ignore ".DS_Store" --target="$(HOME)/.claude/skills" --dir="$$agents_src" skills
 
 karabiner:
 	@mkdir -p "$(HOME)/.config/karabiner"
 	cp "$(DOTFILES)/extra/karabiner/karabiner.json" "$(HOME)/.config/karabiner/karabiner.json"
 
-linux: universal-dots linux-dots
+# Install + load the agent-sync LaunchAgent (macOS): git-syncs ~/agents with
+# its private GitHub remote every 15 min. The plist is a template — __HOME__ is
+# sed-substituted because launchd expands no variables and usernames differ
+# across machines — and copied (not stowed) since launchd refuses symlinked
+# plists. bootout-then-bootstrap keeps it idempotent.
+agent-sync:
+	@src="$(DOTFILES)/extra/launchd/com.pete.agent-sync.plist"; \
+	dst="$(HOME)/Library/LaunchAgents/com.pete.agent-sync.plist"; \
+	if [ "$(UNAME)" = "Darwin" ] && [ -f "$$src" ]; then \
+		mkdir -p "$(HOME)/Library/LaunchAgents" "$(HOME)/.local/state"; \
+		sed "s|__HOME__|$(HOME)|g" "$$src" > "$$dst"; \
+		domain="gui/$$(id -u)"; \
+		launchctl bootout "$$domain/com.pete.agent-sync" 2>/dev/null || true; \
+		launchctl bootstrap "$$domain" "$$dst"; \
+	fi
 
-linux-dots:
-	stow --restow --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" linux
-
-universal-dots:
-	stow --restow --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" universal
-
-# hammerspoon-pre-dots:
-# 	for url in $(shell cat extra/hammerspoon/spoon-zip-urls); do \
-# 		curl -sSL -o $(SPOONS_DIR)/$$(basename $$url) $$url && \
-# 		unzip -qo $(SPOONS_DIR)/$$(basename $$url) -d $(SPOONS_DIR)/ && \
-# 		rm $(SPOONS_DIR)/$$(basename $$url); \
-# 	done
+# Clone TPM if missing, then install the plugins listed in @tpm_plugins.
+# install_plugins reads @tpm_plugins + TMUX_PLUGIN_MANAGER_PATH from the running
+# server, so ensure one exists (throwaway session) AND re-source the config onto
+# it — an already-running server won't have picked up our vars otherwise. Only
+# the temp session is killed, leaving any existing sessions intact.
+tpm:
+	@if command -v tmux >/dev/null 2>&1; then \
+		mkdir -p "$(HOME)/.config/tmux/plugins"; \
+		if [ ! -d "$(HOME)/.config/tmux/plugins/tpm" ]; then \
+			git clone https://github.com/tmux-plugins/tpm "$(HOME)/.config/tmux/plugins/tpm"; \
+		fi; \
+		tmux new-session -d -s tpm_bootstrap 2>/dev/null || true; \
+		tmux source-file "$(HOME)/.tmux.conf" 2>/dev/null || true; \
+		"$(HOME)/.config/tmux/plugins/tpm/bin/install_plugins" || true; \
+		tmux kill-session -t tpm_bootstrap 2>/dev/null || true; \
+	fi
 
 homebrew:
 	brew bundle --no-upgrade --file="$(DOTFILES)/extra/homebrew/Brewfile"

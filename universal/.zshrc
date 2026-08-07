@@ -29,6 +29,10 @@ export NVM_SYMLINK_CURRENT=true
 export NVM_AUTO_USE=true
 export NVM_LAZY_LOAD=true
 
+# zsh-nvm installs nvm if missing and sources it, honoring the options above
+# (lazy load + auto-`nvm use` on .nvmrc). Cross-platform, so no per-OS nvm setup.
+znap source lukechilds/zsh-nvm
+
 # -- pyenv ---------------------------------------------------------------------
 
 export PYENV_ROOT="$HOME/.pyenv"
@@ -56,9 +60,6 @@ case $(uname) in
 
         # WezTerm CLI
         export PATH="$PATH:/Applications/WezTerm.app/Contents/MacOS"
-
-        # nvm (homebrew)
-        [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && . "/opt/homebrew/opt/nvm/nvm.sh"
     ;;
     Linux)
         export TERM=xterm-256color
@@ -74,6 +75,15 @@ esac
 [ -f ~/.config/zsh/git ]     && . ~/.config/zsh/git
 [ -f ~/.config/zsh/tmux ]    && . ~/.config/zsh/tmux
 [ -f ~/.config/zsh/agents ]  && . ~/.config/zsh/agents
+
+# -- Drop-ins ------------------------------------------------------------------
+# env.d (exports) then interactive.d (functions/completions that depend on
+# them). Sourced after ohmyzsh so compinit is ready for their compdefs. (N) is
+# null-glob: an empty dir is a no-op. Drop machine- or context-specific .zsh
+# files into either dir and they load automatically.
+for _f in ~/.config/zsh/env.d/*.zsh(N);         do . "$_f"; done
+for _f in ~/.config/zsh/interactive.d/*.zsh(N); do . "$_f"; done
+unset _f
 
 # -- Local overrides (not tracked in dotfiles) ---------------------------------
 

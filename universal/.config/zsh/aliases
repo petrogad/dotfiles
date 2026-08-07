@@ -6,5 +6,23 @@ alias lla='lsd -la'
 alias ll='lsd -la'
 alias lt='lsd --tree'
 
-# claude yolo
-alias yolo="claude --dangerously-skip-permissions"
+# claude yolo mode
+yolo() {
+    claude --dangerously-skip-permissions "$@"
+}
+
+# codex yolo mode
+cyolo() {
+    codex --yolo "$@"
+}
+
+# handle un-graceful exit of ssh sessions that leave the mouse in a weird state
+alias ssh="ssh-clean-mouse"
+ssh-clean-mouse() {
+    command ssh "$@"
+    printf '\e[?1000l\e[?1002l\e[?1003l\e[?1004l\e[?1005l\e[?1006l\e[?1015l'
+    stty sane 2>/dev/null
+}
+
+# emergency terminal reset (type blind if terminal is garbled)
+alias fix='printf "\e[?1000l\e[?1002l\e[?1003l\e[?1004l\e[?1005l\e[?1006l\e[?1015l\e[0m\ec"; stty sane; clear'

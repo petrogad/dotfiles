@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# agent-sync — sync ~/agents with its private GitHub remote via git.
+# Safe unattended (launchd): quiet no-op when offline, locked, or mid-conflict.
+set -euo pipefail
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+
+AGENTS_DIR="$HOME/agents"
+LOCK_DIR="${TMPDIR:-/tmp}/agent-sync.lock"
+LOG="$HOME/.local/state/agent-sync.log"
+
+mkdir -p "$(dirname "$LOG")"
+log() { printf '%s agent-sync: %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$1" >>"$LOG"; }
+
+[ -d "$AGENTS_DIR/.git" ] || { log "$AGENTS_DIR is not a git repo; skip"; exit 0; }
+
+# Overlap guard (mkdir is atomic; macOS has no flock).
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then log "run in progress; skip"; exit 0; fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+
+cd "$AGENTS_DIR"
+
+# Never fight a human (or a previous failed run): bail while a rebase/merge is
+# in flight so manual resolution isn't clobbered.
+if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ] || [ -f .git/MERGE_HEAD ]; then
+  log "rebase/merge in progress in $AGENTS_DIR; resolve manually — skip"
+  exit 0
+fi
+
+# Commit local changes first so pull --rebase replays them cleanly.
+git add -A
+if ! git diff --cached --quiet; then
+  git commit -q -m "sync: $(hostname -s) $(date '+%Y-%m-%d %H:%M')" || { log "commit failed"; exit 0; }
+  log "committed local changes"
+fi
+
+# Offline / remote down => quiet success so launchd doesn't flag failures.
+if ! git fetch -q origin 2>>"$LOG"; then
+  log "fetch failed (offline?); skip"
+  exit 0
+fi
+
+if ! git pull -q --rebase origin main >>"$LOG" 2>&1; then
+  git rebase --abort >/dev/null 2>&1 || true
+  log "rebase conflict — local commits kept; resolve manually in $AGENTS_DIR"
+  exit 0
+fi
+
+if git push -q origin main >>"$LOG" 2>&1; then log "sync ok"; else log "push failed (exit $?)"; fi
+exit 0
