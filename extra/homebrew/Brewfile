@@ -15,6 +15,7 @@ brew "lazygit"
 brew "borders"
 brew "tmuxinator"
 brew "fzf"     # tmux-session-popup fuzzy switcher
+brew "rust"    # tmux-agent-mgr builds itself with cargo on first load
 cask "postman"
 cask "vlc"
 cask "hammerspoon"
