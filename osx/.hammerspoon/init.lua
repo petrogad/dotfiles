@@ -1,6 +1,9 @@
 -- use karabiner to map this to caps lock
 hyper = {"cmd", "alt", "ctrl", "shift"}
 
+-- enables the `hs` CLI (already on PATH) to talk to this config
+require("hs.ipc")
+
 
 -- app hotkeys
 singleapps = {
@@ -41,6 +44,13 @@ hs.hotkey.bind(hyper, "return", hs.hints.windowHints)
 -- Launch new wezterm window on current desktop
 hs.hotkey.bind({ "alt" }, "return", function()
     hs.osascript.applescriptFromFile(os.getenv("HOME") .. "/.local/bin/new-wezterm.applescript")
+end)
+
+-- Hyper+P: push the clipboard image to helios and put the *remote* path on the
+-- clipboard, so pasting inside an ssh/tmux session hands the far side a file it
+-- can actually open. Runs detached — scp rides the existing ControlMaster.
+hs.hotkey.bind(hyper, "p", function()
+    hs.task.new("/bin/zsh", nil, { "-lc", os.getenv("HOME") .. "/.local/bin/clip-push" }):start()
 end)
 
 -- launch script on unlock and log to file

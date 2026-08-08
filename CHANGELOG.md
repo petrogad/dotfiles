@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — short description`. Group related changes under one date
 
 ## 2026-08-08
 
+- Clipboard: new `osx/.local/bin/clip-push` — extracts the image on the local pasteboard (`«class PNGf»`, TIFF→`sips` fallback), `scp`s it to `~/clipboard/clip-<stamp>.png` on a remote host (default `helios`, rides the existing ControlMaster so there's no re-auth), prunes to the last 20, and leaves the *absolute remote path* on the local clipboard. Bound to `hyper+P` in `osx/.hammerspoon/init.lua`. Solves image-pasting into Claude Code running over ssh/tmux: the terminal can't carry an image (OSC 52 is text-only and write-only), so the bytes travel out-of-band and you paste a path the far side can open. Also added `require("hs.ipc")` to the Hammerspoon config so the already-installed `hs` CLI can drive it.
 - Tmux: `@tpm_plugins` now points at `petrogad/tmux-agent-mgr` instead of `alexciarlillo/tmux-agent-mgr`. Forked to add a global notes scratchpad to the agent sidebar — a bottom panel of short note titles with a detail overlay, so context noticed mid-agent-run has somewhere to go. Upstream's `CLAUDE.md` lists "a bottom panel" as explicitly out of scope, so this lives on the fork rather than as a PR. The fork tracks upstream as the `upstream` remote; sync with `git fetch upstream && git merge upstream/main` in `~/.config/tmux/plugins/tmux-agent-mgr`. Work in progress on the `notes-panel` branch — the storage layer and `agent-mgr note add|list|show` are done, the UI panel is not.
 
 ## 2026-08-07
