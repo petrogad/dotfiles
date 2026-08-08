@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# clip-push — move the local clipboard image to a remote host, then put the
+# *remote* path on the local clipboard.
+#
+# Why: an image lives in the local Mac's pasteboard. A shell on the far side of
+# ssh/tmux (Claude Code, nvim, anything) can never see it — the terminal
+# protocol carries text, and OSC 52 is text-only and write-only. So the bytes
+# have to travel out-of-band. This copies them over the ssh connection that is
+# already open (ControlMaster, so no re-auth) and hands you back a path.
+#
+# Usage:  clip-push [host]            # host defaults to $CLIP_PUSH_HOST or helios
+#         then just paste in the remote shell — you get the path, not the image.
+#
+# Env:    CLIP_PUSH_HOST   default ssh host          (default: helios)
+#         CLIP_PUSH_DIR    remote dir, under $HOME   (default: clipboard)
+#         CLIP_PUSH_KEEP   how many files to retain  (default: 20)
+set -euo pipefail
+
+host="${1:-${CLIP_PUSH_HOST:-helios}}"
+subdir="${CLIP_PUSH_DIR:-clipboard}"
+keep="${CLIP_PUSH_KEEP:-20}"
+
+note() { printf '%s\n' "$*" >&2; }
+die() {
+  note "clip-push: $*"
+  command -v osascript >/dev/null && osascript -e "display notification \"$*\" with title \"clip-push\"" 2>/dev/null || true
+  exit 1
+}
+
+stamp=$(date +%Y%m%d-%H%M%S)
+name="clip-$stamp.png"
+tmp="${TMPDIR:-/tmp/}$name"
+
+# Pull PNG bytes off the pasteboard. Screenshots and browser image copies both
+# expose «class PNGf»; fall back to TIFF (some apps only offer that) via sips.
+if ! osascript - "$tmp" <<'OSA' 2>/dev/null; then
+on run argv
+  set outPath to item 1 of argv
+  set pngData to (the clipboard as «class PNGf»)
+  set fh to open for access POSIX file outPath with write permission
+  set eof fh to 0
+  write pngData to fh
+  close access fh
+end run
+OSA
+  if pbpaste -Prefer tiff > "$tmp.tiff" 2>/dev/null && [ -s "$tmp.tiff" ]; then
+    sips -s format png "$tmp.tiff" --out "$tmp" >/dev/null 2>&1 || die "clipboard holds no image"
+    rm -f "$tmp.tiff"
+  else
+    rm -f "$tmp.tiff"
+    die "clipboard holds no image"
+  fi
+fi
+[ -s "$tmp" ] || die "clipboard holds no image"
+
+# One round trip: make the dir, prune old captures, report $HOME so the path we
+# echo back is absolute (a remote `~` would not survive being pasted verbatim).
+# Wrapped in `/bin/sh -c` because the remote login shell may be zsh, where an
+# unmatched glob is a hard error and would abort the whole command.
+remote_cmd='mkdir -p "$HOME/'$subdir'" && ls -t "$HOME/'$subdir'"/clip-*.png 2>/dev/null | tail -n +'$((keep + 1))' | xargs rm -f; printf "%s" "$HOME"'
+remote_home=$(ssh -o BatchMode=yes "$host" "/bin/sh -c '$remote_cmd'") \
+  || die "cannot reach $host over ssh"
+
+scp -q "$tmp" "$host:$remote_home/$subdir/$name" || die "scp to $host failed"
+rm -f "$tmp"
+
+remote_path="$remote_home/$subdir/$name"
+printf '%s' "$remote_path" | pbcopy
+note "$remote_path"
+osascript -e "display notification \"$name → $host (path copied)\" with title \"clip-push\"" 2>/dev/null || true
