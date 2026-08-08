@@ -4,6 +4,10 @@ All notable changes to this dotfiles repo. Newest entries on top.
 
 Format: `YYYY-MM-DD — short description`. Group related changes under one date.
 
+## 2026-08-08
+
+- Tmux: `@tpm_plugins` now points at `petrogad/tmux-agent-mgr` instead of `alexciarlillo/tmux-agent-mgr`. Forked to add a global notes scratchpad to the agent sidebar — a bottom panel of short note titles with a detail overlay, so context noticed mid-agent-run has somewhere to go. Upstream's `CLAUDE.md` lists "a bottom panel" as explicitly out of scope, so this lives on the fork rather than as a PR. The fork tracks upstream as the `upstream` remote; sync with `git fetch upstream && git merge upstream/main` in `~/.config/tmux/plugins/tmux-agent-mgr`. Work in progress on the `notes-panel` branch — the storage layer and `agent-mgr note add|list|show` are done, the UI panel is not.
+
 ## 2026-08-07
 
 - Tmux: added TPM plugin management to `tmux.conf.user` via the `@tpm_plugins` list (gpakosz's conf sources it through `if-shell`, so `set -g @plugin` entries are invisible to TPM) with `tmux-resurrect` + `tmux-continuum` — sessions auto-save every 10 min, capture pane contents, and auto-restore on server start — plus `alexciarlillo/tmux-agent-mgr`. TPM init runs at the very bottom of the file so plugin status-line hooks aren't clobbered by the Appearance block. New `make tpm` target clones TPM and installs plugins idempotently; `universal/.config/tmux/.gitignore` keeps `plugins/` out of git.

@@ -128,7 +128,7 @@ bind C-f display-popup -E -w 60% -h 50% "~/.local/bin/tmux-session-popup"
 # $HOME).
 set-environment -g TMUX_PLUGIN_MANAGER_PATH "$HOME/.config/tmux/plugins/"
 # continuum must load LAST, so it's the final entry in the list.
-set -g @tpm_plugins 'tmux-plugins/tpm alexciarlillo/tmux-agent-mgr tmux-plugins/tmux-resurrect tmux-plugins/tmux-continuum'
+set -g @tpm_plugins 'tmux-plugins/tpm petrogad/tmux-agent-mgr tmux-plugins/tmux-resurrect tmux-plugins/tmux-continuum'
 
 # Persist sessions across reboots.
 # resurrect saves windows/panes/layouts/cwd (+ scrollback) to
