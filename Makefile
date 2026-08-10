@@ -34,6 +34,7 @@ BACKUP_TARGETS := \
 	$(HOME)/.config/tmux/tmux.conf.user \
 	$(HOME)/.hammerspoon/init.lua \
 	$(HOME)/.agents/AGENTS.md \
+	$(HOME)/.local/bin/agent-mgr \
 	$(HOME)/.local/bin/agent-sync \
 	$(HOME)/.local/bin/tmux-session-popup
 
