@@ -4,6 +4,11 @@ All notable changes to this dotfiles repo. Newest entries on top.
 
 Format: `YYYY-MM-DD — short description`. Group related changes under one date.
 
+## 2026-08-10
+
+- Agents: `universal/.agents/AGENTS.md` gains a "My notes scratchpad" section — how to write to the tmux-agent-mgr scratchpad (`agent-mgr note add`, body on stdin), why never to edit `notes.md` by hand (read-modify-write over a file several things write at once drops other people's notes), and when a note is worth filing at all. The last part matters more than the mechanics: a scratchpad that fills with progress narration is worse than none.
+- New `~/.local/bin/agent-mgr` symlink → the plugin's release binary, so the CLI is on PATH for agents and shells rather than only reachable through `@agent_mgr_bin`. Not stowed — it points into `~/.config/tmux/plugins/`, which TPM owns; re-run the `ln -sfn` on a fresh machine after the plugin first builds.
+
 ## 2026-08-08
 
 - Clipboard: new `osx/.local/bin/clip-push` — extracts the image on the local pasteboard (`«class PNGf»`, TIFF→`sips` fallback), `scp`s it to `~/clipboard/clip-<stamp>.png` on a remote host (default `helios`, rides the existing ControlMaster so there's no re-auth), prunes to the last 20, and leaves the *absolute remote path* on the local clipboard. Bound to `hyper+P` in `osx/.hammerspoon/init.lua`. Solves image-pasting into Claude Code running over ssh/tmux: the terminal can't carry an image (OSC 52 is text-only and write-only), so the bytes travel out-of-band and you paste a path the far side can open. Also added `require("hs.ipc")` to the Hammerspoon config so the already-installed `hs` CLI can drive it.
