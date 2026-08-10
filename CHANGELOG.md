@@ -7,7 +7,7 @@ Format: `YYYY-MM-DD — short description`. Group related changes under one date
 ## 2026-08-10
 
 - Agents: `universal/.agents/AGENTS.md` gains a "My notes scratchpad" section — how to write to the tmux-agent-mgr scratchpad (`agent-mgr note add`, body on stdin), why never to edit `notes.md` by hand (read-modify-write over a file several things write at once drops other people's notes), and when a note is worth filing at all. The last part matters more than the mechanics: a scratchpad that fills with progress narration is worse than none.
-- New `~/.local/bin/agent-mgr` symlink → the plugin's release binary, so the CLI is on PATH for agents and shells rather than only reachable through `@agent_mgr_bin`. Not stowed — it points into `~/.config/tmux/plugins/`, which TPM owns; re-run the `ln -sfn` on a fresh machine after the plugin first builds.
+- New stowed `universal/.local/bin/agent-mgr` shim, so the CLI is on PATH for agents and shells rather than only reachable through `@agent_mgr_bin`. A shim rather than a symlink because the real binary lives inside the TPM plugin checkout — a build artifact that doesn't exist until tmux has cloned the plugin and cargo has built it, so a stowed symlink would dangle on a fresh machine. Resolves at call time: `@agent_mgr_bin` when inside tmux (authoritative, and what the plugin's own bindings use), then the XDG and legacy plugin paths, then exits 127 with build instructions. Added to `BACKUP_TARGETS`.
 
 ## 2026-08-08
 
