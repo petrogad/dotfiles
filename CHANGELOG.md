@@ -4,6 +4,11 @@ All notable changes to this dotfiles repo. Newest entries on top.
 
 Format: `YYYY-MM-DD — short description`. Group related changes under one date.
 
+## 2026-08-18
+
+- Zsh: new `universal/.config/zsh/env.d/editor.zsh` setting `EDITOR`/`VISUAL` to nano. Both, because the convention is VISUAL-wins-for-full-screen and tools disagree about which they read — a machine where they name different editors is one where you can't predict what a keypress opens. Neither was set at all, which meant anything shelling out to "an editor" (git commit, `agent-mgr note edit`) landed in bare `vi`.
+- Note for future me: a tmux `display-popup` runs with the **server's** environment, not the shell's, so an export in the profile only reaches servers started after it. `tmux set-environment -g EDITOR nano` fixes one already running; verified on a `-L probe` server that a server started with EDITOR exported does pass it through to jobs, so no tmux.conf duplication is needed.
+
 ## 2026-08-10
 
 - Agents: `universal/.agents/AGENTS.md` gains a "My notes scratchpad" section — how to write to the tmux-agent-mgr scratchpad (`agent-mgr note add`, body on stdin), why never to edit `notes.md` by hand (read-modify-write over a file several things write at once drops other people's notes), and when a note is worth filing at all. The last part matters more than the mechanics: a scratchpad that fills with progress narration is worse than none.
