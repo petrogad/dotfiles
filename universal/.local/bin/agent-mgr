@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# agent-mgr — shim putting the tmux-agent-mgr CLI on PATH.
+#
+# The real binary lives inside the TPM plugin checkout, which is a build artifact
+# owned by tmux rather than by this repo: it does not exist on a fresh machine
+# until TPM has cloned the plugin and cargo has built it. A stowed symlink would
+# therefore either dangle or need creating by hand afterwards, so this resolves
+# at call time instead and is correct the moment the binary appears.
+#
+# Mostly used for the notes scratchpad — `agent-mgr note add|list|show|edit`, see
+# ~/.agents/AGENTS.md — and for poking at the daemon.
+set -euo pipefail
+
+# tmux publishes the resolved path as @agent_mgr_bin, which is authoritative:
+# it is what the plugin's own keybindings and hooks use, so it stays right even
+# if the plugin moves. Only ask when we are inside tmux — outside it, a default
+# server may answer for a different install entirely.
+bin=""
+if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+  bin="$(tmux display-message -p '#{@agent_mgr_bin}' 2>/dev/null || true)"
+fi
+
+# Outside tmux, or before the option is published, fall back to where TPM puts
+# it. XDG first, then the plain path, matching how tmux itself looks for plugins.
+if [ -z "$bin" ] || [ ! -x "$bin" ]; then
+  for candidate in \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/tmux/plugins/tmux-agent-mgr/target/release/agent-mgr" \
+    "$HOME/.tmux/plugins/tmux-agent-mgr/target/release/agent-mgr"; do
+    [ -x "$candidate" ] && { bin="$candidate"; break; }
+  done
+fi
+
+if [ -z "$bin" ] || [ ! -x "$bin" ]; then
+  cat >&2 <<'EOF'
+agent-mgr: the plugin binary is not built yet.
+
+  tmux-agent-mgr builds itself on first load. Start tmux and install plugins
+  (prefix + I), or build it by hand:
+
+    cd ~/.config/tmux/plugins/tmux-agent-mgr && cargo build --release
+EOF
+  exit 127
+fi
+
+exec "$bin" "$@"

@@ -28,12 +28,14 @@ BACKUP_TARGETS := \
 	$(HOME)/.config/lazygit/shell_init.sh \
 	$(HOME)/.config/linearmouse/linearmouse.json \
 	$(HOME)/.config/zsh/aliases \
+	$(HOME)/.config/zsh/env.d/editor.zsh \
 	$(HOME)/.config/zsh/agents \
 	$(HOME)/.config/zsh/git \
 	$(HOME)/.config/zsh/tmux \
 	$(HOME)/.config/tmux/tmux.conf.user \
 	$(HOME)/.hammerspoon/init.lua \
 	$(HOME)/.agents/AGENTS.md \
+	$(HOME)/.local/bin/agent-mgr \
 	$(HOME)/.local/bin/agent-sync \
 	$(HOME)/.local/bin/tmux-session-popup
 
