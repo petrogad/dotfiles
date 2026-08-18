@@ -8,6 +8,7 @@ Format: `YYYY-MM-DD — short description`. Group related changes under one date
 
 - Zsh: new `universal/.config/zsh/env.d/editor.zsh` setting `EDITOR`/`VISUAL` to nano. Both, because the convention is VISUAL-wins-for-full-screen and tools disagree about which they read — a machine where they name different editors is one where you can't predict what a keypress opens. Neither was set at all, which meant anything shelling out to "an editor" (git commit, `agent-mgr note edit`) landed in bare `vi`.
 - Note for future me: a tmux `display-popup` runs with the **server's** environment, not the shell's, so an export in the profile only reaches servers started after it. `tmux set-environment -g EDITOR nano` fixes one already running; verified on a `-L probe` server that a server started with EDITOR exported does pass it through to jobs, so no tmux.conf duplication is needed.
+- `brew "nano"` added to the Brewfile, because macOS's `/usr/bin/nano` is **UW PICO 5.09** — Apple's pico clone, with no syntax highlighting and no nanorc support whatsoever. GNU nano 9.2 ships 44 syntax definitions and Homebrew's `etc/nanorc` already includes them all, so markdown highlighting (headings, fenced and inline code, the `<!-- id= -->` metadata line, emphasis, list markers) works with no config of our own. Homebrew's bin precedes `/usr/bin` on PATH, including inside tmux popup jobs — verified.
 
 ## 2026-08-10
 

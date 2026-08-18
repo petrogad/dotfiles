@@ -3,6 +3,7 @@ tap "FelixKratz/formulae"
 brew "git"
 brew "jq"
 brew "lsd"
+brew "nano"        # GNU nano; macOS ships UW PICO as /usr/bin/nano, which has no syntax highlighting
 brew "ripgrep"
 brew "stow"
 brew "tmux"
