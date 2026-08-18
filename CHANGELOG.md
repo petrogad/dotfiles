@@ -4,6 +4,10 @@ All notable changes to this dotfiles repo. Newest entries on top.
 
 Format: `YYYY-MM-DD — short description`. Group related changes under one date.
 
+## 2026-08-19
+
+- Stopped tracking the four znap-managed plugin clone directories (`znap`, `ohmyzsh`, `zsh-users`, `lukechilds` under `universal/.config/zsh/`). They were committed as **gitlinks with no `.gitmodules`**, so every `git status` recursed into five separate repos — one of them oh-my-zsh at 2078 files — which cost ~2s on a cold cache and ~0.07s warm. That is what made starship's git segment time out and log `Executing command "/usr/bin/git" timed out` on a slower machine: raising `command_timeout` would only have traded the warning for a multi-second prompt stall. Now ~0.01s, cold or warm. Nothing is lost — `.stow-local-ignore` already kept these out of stow's way, and `.zshrc` clones znap on first run with `znap source` fetching each plugin, so a fresh machine rebuilds them automatically.
+
 ## 2026-08-18
 
 - Zsh: new `universal/.config/zsh/env.d/editor.zsh` setting `EDITOR`/`VISUAL` to nano. Both, because the convention is VISUAL-wins-for-full-screen and tools disagree about which they read — a machine where they name different editors is one where you can't predict what a keypress opens. Neither was set at all, which meant anything shelling out to "an editor" (git commit, `agent-mgr note edit`) landed in bare `vi`.
