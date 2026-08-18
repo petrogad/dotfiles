@@ -88,7 +88,9 @@ If the app rewrites its config file on launch (and would clobber a symlink), put
 ## Adding a new package
 
 - **macOS**: edit `extra/homebrew/Brewfile`, then `make init` (or `brew bundle --file=extra/homebrew/Brewfile`).
-- **Linux**: edit `extra/apt/packages.txt`, then `make init`.
+- **Linux**: edit `extra/apt/packages.txt`, then `make init`. One package per line and
+  **no comments** — the Makefile feeds the whole file to `apt-get install` through
+  `xargs`, so any explanatory text becomes a package name and the install fails.
 
 ---
 
@@ -123,8 +125,12 @@ Karabiner-Elements overwrites its config file on launch, which breaks symlinks. 
 
 ## Tools expected on the system
 
-- **macOS**: `brew`, `stow`, `tmux`, `starship`, `wezterm`, `aerospace`, `hammerspoon`, `karabiner-elements`, `borders`, `lazygit`, `lsd`, `ripgrep`, `nvm`, `pyenv`
-- **Linux**: `stow`, `tmux`, `starship`, `lazygit`, `lsd`, `ripgrep`
+- **macOS**: `brew`, `stow`, `tmux`, `starship`, `wezterm`, `aerospace`, `hammerspoon`, `karabiner-elements`, `borders`, `lazygit`, `lsd`, `ripgrep`, `nano`, `nvm`, `pyenv`
+- **Linux**: `stow`, `tmux`, `starship`, `lazygit`, `lsd`, `ripgrep`, `nano`
+
+`nano` is `$EDITOR` (see `universal/.config/zsh/env.d/editor.zsh`), so it is not
+optional. On macOS it must come from Homebrew: `/usr/bin/nano` is UW PICO wearing
+the name, with no syntax highlighting and no nanorc support.
 
 `make init` installs most of these via Brewfile / `apt`.
 
