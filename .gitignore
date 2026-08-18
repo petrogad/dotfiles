@@ -1,3 +1,16 @@
 *.zwc
 .DS_Store
 /.claude/
+
+# znap-managed plugin clones. znap clones these itself on first shell startup
+# (see the top of .zshrc), and .stow-local-ignore already keeps them out of
+# stow's way — so they are pure working-tree residue that git should not see.
+#
+# They were previously committed as gitlinks with no .gitmodules, which made
+# every `git status` recurse into five separate repos, one of them 2078 files.
+# Cold, that took ~2s and blew past starship's command_timeout, so the prompt
+# lost its git segment. Ignoring them: ~0.01s.
+/universal/.config/zsh/znap/
+/universal/.config/zsh/ohmyzsh/
+/universal/.config/zsh/zsh-users/
+/universal/.config/zsh/lukechilds/
