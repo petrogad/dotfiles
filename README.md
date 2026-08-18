@@ -88,7 +88,9 @@ If the app rewrites its config file on launch (and would clobber a symlink), put
 ## Adding a new package
 
 - **macOS**: edit `extra/homebrew/Brewfile`, then `make init` (or `brew bundle --file=extra/homebrew/Brewfile`).
-- **Linux**: edit `extra/apt/packages.txt`, then `make init`.
+- **Linux**: edit `extra/apt/packages.txt`, then `make init`. One package per line and
+  **no comments** — the Makefile feeds the whole file to `apt-get install` through
+  `xargs`, so any explanatory text becomes a package name and the install fails.
 
 ---
 
