@@ -6,6 +6,7 @@ stow
 ripgrep
 fd-find
 tmux
+nano
 neovim
 vim
 zsh

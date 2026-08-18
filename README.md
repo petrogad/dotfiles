@@ -123,8 +123,12 @@ Karabiner-Elements overwrites its config file on launch, which breaks symlinks. 
 
 ## Tools expected on the system
 
-- **macOS**: `brew`, `stow`, `tmux`, `starship`, `wezterm`, `aerospace`, `hammerspoon`, `karabiner-elements`, `borders`, `lazygit`, `lsd`, `ripgrep`, `nvm`, `pyenv`
-- **Linux**: `stow`, `tmux`, `starship`, `lazygit`, `lsd`, `ripgrep`
+- **macOS**: `brew`, `stow`, `tmux`, `starship`, `wezterm`, `aerospace`, `hammerspoon`, `karabiner-elements`, `borders`, `lazygit`, `lsd`, `ripgrep`, `nano`, `nvm`, `pyenv`
+- **Linux**: `stow`, `tmux`, `starship`, `lazygit`, `lsd`, `ripgrep`, `nano`
+
+`nano` is `$EDITOR` (see `universal/.config/zsh/env.d/editor.zsh`), so it is not
+optional. On macOS it must come from Homebrew: `/usr/bin/nano` is UW PICO wearing
+the name, with no syntax highlighting and no nanorc support.
 
 `make init` installs most of these via Brewfile / `apt`.
 
