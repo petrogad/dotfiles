@@ -1,9 +1,10 @@
 # Agent instructions
 
 Agent-agnostic standing instructions — the single source of truth for every agent, and the only
-place these belong. Codex reads this file natively at `~/.agents/AGENTS.md`; Claude Code doesn't, so
-`~/.claude/CLAUDE.md` is a stub that imports it. Add standing instructions here, not in either
-agent's own config. Grow this over time.
+place these belong. Codex reads this file natively at `~/.agents/AGENTS.md`; Claude Code reads
+`~/.claude/CLAUDE.md`, which `make agents` symlinks straight at this file, so both see the same
+words with no copy to drift. Add standing instructions here, not in either agent's own config. Grow
+this over time.
 
 ## References
 
