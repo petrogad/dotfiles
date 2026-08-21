@@ -35,6 +35,7 @@ BACKUP_TARGETS := \
 	$(HOME)/.config/tmux/tmux.conf.user \
 	$(HOME)/.hammerspoon/init.lua \
 	$(HOME)/.agents/AGENTS.md \
+	$(HOME)/.claude/CLAUDE.md \
 	$(HOME)/.local/bin/agent-mgr \
 	$(HOME)/.local/bin/agent-sync \
 	$(HOME)/.local/bin/tmux-session-popup
@@ -77,6 +78,11 @@ universal-dots:
 # ~/.agents/skills and ~/.claude/skills. AGENTS.md links into ~/.agents only.
 # ~/.claude/skills stays a real dir (owned by universal-dots), so folding just
 # our entries leaves any other skills alone.
+#
+# ~/.claude/CLAUDE.md is symlinked at AGENTS.md rather than being a stub that
+# imports it: Claude Code reads that path as user-level memory whatever it
+# contains, so a symlink needs no import syntax to be right. A real file there is
+# somebody's own memory and is left alone with a message.
 agents:
 	@agents_src="$(DOTFILES)/universal/.agents"; \
 	for target in "$(HOME)/.agents/skills" "$(HOME)/.claude/skills"; do \
@@ -89,7 +95,14 @@ agents:
 	stow --restow --no-folding --ignore ".DS_Store" --ignore "skills" \
 		--target="$(HOME)/.agents" --dir="$(DOTFILES)/universal" .agents; \
 	stow --restow --ignore ".DS_Store" --target="$(HOME)/.agents/skills" --dir="$$agents_src" skills; \
-	stow --restow --ignore ".DS_Store" --target="$(HOME)/.claude/skills" --dir="$$agents_src" skills
+	stow --restow --ignore ".DS_Store" --target="$(HOME)/.claude/skills" --dir="$$agents_src" skills; \
+	claude_md="$(HOME)/.claude/CLAUDE.md"; \
+	if [ -e "$$claude_md" ] && [ ! -L "$$claude_md" ]; then \
+		echo "agents: $$claude_md exists and is not a symlink — leaving it alone."; \
+		echo "        Move it aside and re-run to have AGENTS.md reach Claude Code."; \
+	else \
+		ln -sfn "$$agents_src/AGENTS.md" "$$claude_md"; \
+	fi
 
 karabiner:
 	@mkdir -p "$(HOME)/.config/karabiner"

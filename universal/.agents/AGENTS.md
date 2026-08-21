@@ -1,9 +1,10 @@
 # Agent instructions
 
 Agent-agnostic standing instructions — the single source of truth for every agent, and the only
-place these belong. Codex reads this file natively at `~/.agents/AGENTS.md`; Claude Code doesn't, so
-`~/.claude/CLAUDE.md` is a stub that imports it. Add standing instructions here, not in either
-agent's own config. Grow this over time.
+place these belong. Codex reads this file natively at `~/.agents/AGENTS.md`; Claude Code reads
+`~/.claude/CLAUDE.md`, which `make agents` symlinks straight at this file, so both see the same
+words with no copy to drift. Add standing instructions here, not in either agent's own config. Grow
+this over time.
 
 ## References
 
@@ -53,3 +54,34 @@ When to write one, and when not:
 - **Don't** narrate your own progress into it, and don't file what belongs in the work I am already
   reviewing — a finding about the code you are currently writing goes in your reply to me, not here.
   A scratchpad I have to prune is worse than no scratchpad.
+
+### Decision points
+
+The panel doubles as my queue of *things waiting on me*. So: **when you have to guess at something
+only I can settle, proceed under your best assumption and leave a note saying what you assumed.**
+
+The test is whether I could still change my mind later and whether it would cost something if I
+never found out. A timeout value you invented, a spec that contradicted itself and you picked a
+reading, a fix you deliberately scoped out — those are mine to settle and I will not remember them
+unless they are written down.
+
+**Ask me directly instead whenever I am here and responsive.** A note is for a decision you made
+*in my absence* — mid-way through a long autonomous run, or where stopping to ask would have blocked
+everything else. If we are talking, the reply is the right place and a note is a second copy I have
+to close.
+
+One note per decision, titled so it is actionable without opening it, and **prefixed with the
+project** — the scratchpad is global, so `blueberry: kept the v3 modal` tells me where to look and a
+bare `kept the v3 modal` does not:
+
+```sh
+agent-mgr note add "blueberry: kept the v3 modal, the v4 spec is ambiguous" --body - <<'EOF'
+Two conflicting layouts in the v4 source, with nothing saying which supersedes.
+Went with v3 because it is what ships today.
+
+Reversing it is `git revert abc1234` — nothing else depends on it.
+EOF
+```
+
+Put the alternative and the cost of switching in the body. A decision I can reverse in one command
+is a different thing from one I cannot, and the title has no room to say which.
