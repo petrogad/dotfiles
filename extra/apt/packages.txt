@@ -5,6 +5,7 @@ curl
 wget
 stow
 ripgrep
+jq
 fd-find
 tmux
 nano
