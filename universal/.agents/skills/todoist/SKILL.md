@@ -26,8 +26,8 @@ agents are waiting on him for.
 [ -n "$TODOIST_API_TOKEN" ] || [ ! -f ~/.zshrc.local ] || source ~/.zshrc.local
 # Still unset (a cloud session, a fresh machine)? The 1Password service account can read it:
 # the token lives in the 'Kreinto Infra' vault so any session anywhere can file an ask.
-[ -n "$TODOIST_API_TOKEN" ] || ! command -v op >/dev/null || TODOIST_API_TOKEN=$(op read "op://Kreinto Infra/todoist-api-token/credential" 2>/dev/null || true)
-: "${TODOIST_API_TOKEN:?TODOIST_API_TOKEN unset — get a token from Todoist → Settings → Integrations → Developer; put it in 1Password as 'todoist-api-token' in 'Kreinto Infra' (op read fallback above) and/or 'export TODOIST_API_TOKEN=<token>' in ~/.zshrc.local (never anywhere that gets committed)}"
+[ -n "$TODOIST_API_TOKEN" ] || ! command -v op >/dev/null || TODOIST_API_TOKEN=$(op read "op://Kreinto Infra/todoist-api-key/text" 2>/dev/null || true)
+: "${TODOIST_API_TOKEN:?TODOIST_API_TOKEN unset — get a token from Todoist → Settings → Integrations → Developer; put it in 1Password as Secure Note 'todoist-api-key' (field text) in 'Kreinto Infra' (op read fallback above) and/or 'export TODOIST_API_TOKEN=<token>' in ~/.zshrc.local (never anywhere that gets committed)}"
 command -v jq >/dev/null || { echo "jq required — brew install jq / apt-get install jq"; exit 1; }
 
 repo="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")"
