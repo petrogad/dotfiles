@@ -85,3 +85,84 @@ EOF
 
 Put the alternative and the cost of switching in the body. A decision I can reverse in one command
 is a different thing from one I cannot, and the title has no room to say which.
+
+## The home fleet
+
+Two HP EliteDesk boxes running Proxmox, plus Macs for anything Apple. A map, not
+a manual — the detail lives in `kreinto-infra` and in `~/agents/plans/`.
+
+| Host | Address | Is |
+|---|---|---|
+| `labs` | `192.168.1.3` | Proxmox. Staging + apps. |
+| `labs-pg` | `192.168.1.10` | PostgreSQL 18. Staging databases and clone templates. |
+| `labs-apps` | `192.168.1.11` | Docker. Serves `*.lab.kreinto.io`. Holds the deploy runner. |
+| `forge` | `192.168.1.4` | Proxmox. Dev. |
+| `forge-dev` | `192.168.1.21` | **The dev node. `ssh dev`.** Where work happens. |
+
+Names resolve as `<host>.home.arpa` from the UDM. `home.arpa` and not a
+`kreinto.io` name because kreinto.io sends HSTS `includeSubDomains; preload`,
+so browsers hard-reject self-signed certs on any subdomain — including Proxmox
+on `:8006`.
+
+**Work on `forge-dev`, not on a Mac.** The Macs exist for what Linux cannot do:
+Xcode/iOS, real Safari/WebKit, hardware checks. Everything else — web, API,
+Android, databases, agents — belongs on `forge-dev`.
+
+### Databases: never run a local Postgres
+
+`labs-pg` holds the canonical seeded content. Per project there are three:
+
+    <project>           staging. The deployed labs app is connected to it.
+    <project>_seed      clone template, owned by `dev`, nothing connected.
+    <project>_<branch>  what you make and destroy.
+
+    db-clone <project> <branch>    # ~0.1s, fully migrated
+    db-drop  <project> <branch>
+    db-ls                          # only your clones
+
+`createdb -T` refuses a template with open connections, which is why the seed
+exists separately from staging; and it is server-local, which is why clones live
+on `labs-pg` rather than beside you. `refresh-seed <project>` on `labs-pg`
+re-snapshots staging into the seed — run it after a merge that changes schema.
+
+A project's dev compose that still ships its own `postgres` service should be
+pointed at a clone instead.
+
+### Worktrees
+
+`_worktree <branch>` from the repo root, then `scripts/setup-worktree.sh`, which
+derives a port block from the branch so parallel worktrees never collide. Reach
+a branch's stack at `192.168.1.21:<port>` — check the generated `.env` for which.
+
+### Android on real hardware
+
+Builds and installs to a physical device from `forge-dev`. No emulator, and no
+Mac involved.
+
+    flugo-android [port]     # ~/.local/bin — sets up the tunnel, builds, installs
+
+Two things that will otherwise waste an hour:
+
+- **`adb reverse` is mandatory, not a convenience.** `ApiEnvironment.kt` and the
+  debug `network_security_config.xml` both permit cleartext only to `localhost`,
+  `127.0.0.1`, `10.0.2.2`. Point the app at a LAN IP and it throws
+  `API origin requires HTTPS` and dies at launch. `adb reverse tcp:PORT tcp:PORT`
+  makes the phone's own localhost reach the dev node, so the guard stays intact.
+- **The tunnel dies with the adb connection.** Wifi drop, re-pair, toggling
+  wireless debugging — all silently break it, and it presents as the API being
+  down. Re-run the helper.
+
+Demo sign-in for seeded stacks: `jordan@northgateultimate.org` /
+`demo-password-1`. Staging on `labs` has **no** demo users — `SEED_DEMO=false` is
+refused under `NODE_ENV=production`.
+
+### Deploys
+
+Merge to the default branch deploys to `labs-apps`; there is no staging branch.
+A self-hosted runner on that host builds and `docker compose up`s locally.
+App repos carry `docker-compose.baseline.yml`, `.env.baseline.example` and a
+`deploy.yml`. (They were called `*.mini.*` when the baseline host was a Mac mini.)
+
+`cusp` is the exception: it lives in the `Cusp-Media-LLC` org, and cross-org
+private repos can neither call `kreinto-infra`'s reusable workflow nor use its
+runner — so it carries its own copy of both.
