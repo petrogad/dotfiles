@@ -31,6 +31,15 @@ else ifeq ($(UNAME),Linux)
 		sudo apt-get install -y postgresql-common; \
 		sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y; \
 	fi
+	@# Rust from rustup, not the distro. Debian 13 has rustc 1.85 and
+	@# tmux-agent-mgr's dependencies need 1.88, so the plugin's first-load
+	@# build fails and the sidebar never opens. env.d/rust.zsh puts
+	@# ~/.cargo/bin first on PATH so this wins over any distro cargo.
+	@if [ ! -x "$$HOME/.cargo/bin/cargo" ]; then \
+		echo "==> Installing the Rust toolchain (rustup)"; \
+		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+			| sh -s -- -y --no-modify-path; \
+	fi
 	@sudo apt-get update -qq
 endif
 
