@@ -16,7 +16,10 @@ fi
 # Android Gradle Plugin is version-sensitive — AGP 9 wants 17+. Pin it when the
 # distro package is present rather than relying on whatever `java` resolves to.
 if [[ -z "${JAVA_HOME:-}" ]]; then
-  for _jdk in /usr/lib/jvm/java-21-openjdk-* /usr/lib/jvm/java-17-openjdk-*; do
+  # (N) is null-glob: without it zsh ABORTS the loop with "no matches found"
+  # the moment one pattern misses — so a machine with 21 but no 17 got no
+  # JAVA_HOME at all. Same idiom the zshrc already uses for env.d/*.zsh(N).
+  for _jdk in /usr/lib/jvm/java-21-openjdk-*(N) /usr/lib/jvm/java-17-openjdk-*(N); do
     [[ -d "$_jdk" ]] && { export JAVA_HOME="$_jdk"; break }
   done
   unset _jdk
