@@ -1,5 +1,7 @@
 build-essential
-cargo
+# NOT cargo: Debian's rustc is too old to build tmux-agent-mgr (needs 1.88,
+# trixie has 1.85). `make bootstrap` installs rustup instead, and
+# env.d/rust.zsh puts it first on PATH.
 git
 curl
 wget
