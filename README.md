@@ -12,6 +12,13 @@ This README is the cheat sheet for **what to do when I sit down at a new (or ano
 
 ### I'm on a brand new computer
 
+On a minimal Linux install, `git` and `make` aren't there yet — and `make bootstrap`
+obviously can't install the `make` it is run with:
+
+```bash
+sudo apt-get update && sudo apt-get install -y git make   # Linux only
+```
+
 ```bash
 git clone https://github.com/petrogad/dotfiles.git ~/github/dotfiles
 cd ~/github/dotfiles
@@ -88,9 +95,12 @@ If the app rewrites its config file on launch (and would clobber a symlink), put
 ## Adding a new package
 
 - **macOS**: edit `extra/homebrew/Brewfile`, then `make init` (or `brew bundle --file=extra/homebrew/Brewfile`).
-- **Linux**: edit `extra/apt/packages.txt`, then `make init`. One package per line and
-  **no comments** — the Makefile feeds the whole file to `apt-get install` through
-  `xargs`, so any explanatory text becomes a package name and the install fails.
+- **Linux**: edit `extra/apt/packages.txt`, then `make init`. One package per line.
+  `#` comments and blank lines are fine — `apt-packages` strips them before handing the
+  list to `apt-get`. Worth a comment whenever a package's purpose isn't obvious from its
+  name (`postgresql-client` is there for `db-clone`, not for running a database).
+  A package that isn't in Debian's repos needs its apt source added in `bootstrap`
+  first — see how `gh` does it.
 
 ---
 
