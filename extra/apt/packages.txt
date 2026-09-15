@@ -12,3 +12,13 @@ nano
 neovim
 vim
 zsh
+# GitHub CLI. Not in Debian's repos — `make bootstrap` adds cli.github.com
+# to apt first, so this line only resolves after that has run.
+gh
+# psql/createdb/dropdb. LOAD-BEARING on a dev node: db-clone, db-drop and
+# db-ls are thin wrappers around these, and refresh-seed uses pg_dump.
+# Without it a fresh machine cannot touch labs-pg at all.
+postgresql-client
+# Survives sleep, roaming and IP changes, unlike ssh — the difference between
+# reattaching to a remote tmux session and rebuilding it.
+mosh

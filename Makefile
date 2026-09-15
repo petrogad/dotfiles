@@ -10,6 +10,18 @@ ifeq ($(UNAME),Darwin)
 	@command -v stow >/dev/null || brew install stow
 else ifeq ($(UNAME),Linux)
 	@command -v stow >/dev/null || sudo apt-get install -y stow
+	@# GitHub CLI isn't in Debian's repos, so apt needs its source before
+	@# `make apt-packages` can resolve the `gh` line. Idempotent.
+	@if [ ! -f /etc/apt/sources.list.d/github-cli.list ]; then \
+		echo "==> Adding the GitHub CLI apt source"; \
+		sudo mkdir -p -m 755 /etc/apt/keyrings; \
+		wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+			| sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null; \
+		sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg; \
+		echo "deb [arch=$$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+			| sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null; \
+	fi
+	@sudo apt-get update -qq
 endif
 
 BACKUP_DIR := $(HOME)/dotfiles-backup/$(shell date +%Y%m%d-%H%M%S)
@@ -146,7 +158,8 @@ homebrew:
 
 apt-packages:
 	@if [ -f "$(DOTFILES)/extra/apt/packages.txt" ]; then \
-		xargs -a "$(DOTFILES)/extra/apt/packages.txt" sudo apt-get install -y; \
+		grep -vE '^[[:space:]]*(#|$$)' "$(DOTFILES)/extra/apt/packages.txt" \
+			| xargs sudo apt-get install -y; \
 	else \
 		echo "No apt packages file found at extra/apt/packages.txt"; \
 	fi
