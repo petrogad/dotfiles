@@ -140,6 +140,10 @@ Karabiner-Elements overwrites its config file on launch, which breaks symlinks. 
   `fzf`, `zoxide`, `gh`, `mosh`, `postgresql-client` — all installed by `make init`.
   Debian ships `bat` and `fd-find` under the names `batcat` and `fdfind`;
   `make apt-packages` symlinks them back.
+- **Rust** comes from `rustup` (installed by `make bootstrap`), never the distro
+  package. Debian 13 ships rustc 1.85 and `tmux-agent-mgr` needs 1.88 — on the
+  distro toolchain the plugin's first-load build fails, no binary appears, and
+  the sidebar silently never opens.
 
 `nano` is `$EDITOR` (see `universal/.config/zsh/env.d/editor.zsh`), so it is not
 optional. On macOS it must come from Homebrew: `/usr/bin/nano` is UW PICO wearing
