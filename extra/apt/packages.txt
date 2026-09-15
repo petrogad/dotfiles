@@ -17,7 +17,9 @@ zsh
 gh
 # psql/createdb/dropdb. LOAD-BEARING on a dev node: db-clone, db-drop and
 # db-ls are thin wrappers around these, and refresh-seed uses pg_dump.
-# Without it a fresh machine cannot touch labs-pg at all.
+# Without it a fresh machine cannot touch the database host at all.
+# Comes from PGDG (added by `make bootstrap`), not Debian: Debian 13 ships
+# client 17 and pg_dump refuses a server newer than itself.
 postgresql-client
 # Survives sleep, roaming and IP changes, unlike ssh — the difference between
 # reattaching to a remote tmux session and rebuilding it.

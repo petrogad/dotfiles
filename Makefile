@@ -21,6 +21,16 @@ else ifeq ($(UNAME),Linux)
 		echo "deb [arch=$$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
 			| sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null; \
 	fi
+	@# Debian 13 ships postgresql-client 17, but our servers run 18 — and
+	@# pg_dump REFUSES a newer server outright ("aborting because of server
+	@# version mismatch"). PGDG's metapackage tracks the latest, and a newer
+	@# client against an older server is always fine, so this stays correct
+	@# when the servers move again.
+	@if ! ls /etc/apt/sources.list.d/pgdg.* >/dev/null 2>&1; then \
+		echo "==> Adding the PostgreSQL (PGDG) apt source"; \
+		sudo apt-get install -y postgresql-common; \
+		sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y; \
+	fi
 	@sudo apt-get update -qq
 endif
 

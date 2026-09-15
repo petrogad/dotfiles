@@ -12,6 +12,13 @@ This README is the cheat sheet for **what to do when I sit down at a new (or ano
 
 ### I'm on a brand new computer
 
+On a minimal Linux install, `git` and `make` aren't there yet — and `make bootstrap`
+obviously can't install the `make` it is run with:
+
+```bash
+sudo apt-get update && sudo apt-get install -y git make   # Linux only
+```
+
 ```bash
 git clone https://github.com/petrogad/dotfiles.git ~/github/dotfiles
 cd ~/github/dotfiles
