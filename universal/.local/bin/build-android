@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# Build + install an Android debug app from the worktree you are standing in,
+# pointed at that worktree's own dev API.
+#
+# Examples of call:
+# build-android
+# => finds the Gradle project under the current worktree, reads API_PORT from
+#    its .env, tunnels that port to the phone, installs the debug build
+#
+# build-android --port 4610
+# => same, but overrides the port
+#
+# build-android --no-tunnel assembleDebug
+# => no device needed; just build
+set -e
+
+port=""
+task="installDebug"
+prop="${ANDROID_ORIGIN_PROP:-}"
+tunnel=yes
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --port) port="$2"; shift 2 ;;
+    --prop) prop="$2"; shift 2 ;;
+    --no-tunnel) tunnel=no; shift ;;
+    -h|--help) sed -n '2,14p' "$0" | sed -e 's/^# //' -e 's/^#$//'; exit 0 ;;
+    -*) echo "build-android: unknown option $1" >&2; exit 1 ;;
+    *) task="$1"; shift ;;
+  esac
+done
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "build-android: not inside a git worktree (cd into one first)" >&2; exit 1; }
+
+# Find the Gradle project by walking the tree rather than assuming a layout.
+# flugo keeps it at apps/android; a single-app repo has it at the root. Skip
+# build output and dependency dirs, which contain their own stray wrappers.
+# NB: a read loop, not mapfile — macOS still ships bash 3.2, where mapfile
+# does not exist, and this script is in universal/.
+wrappers=()
+while IFS= read -r line; do
+  wrappers+=("$line")
+done < <(find "$root" -maxdepth 4 -name gradlew -type f \
+  -not -path '*/node_modules/*' -not -path '*/build/*' -not -path '*/.gradle/*' \
+  2>/dev/null | sort)
+
+case ${#wrappers[@]} in
+  0) echo "build-android: no gradlew found under $root" >&2; exit 1 ;;
+  1) gradle_dir=$(dirname "${wrappers[0]}") ;;
+  *) echo "build-android: found ${#wrappers[@]} Gradle projects, cd into one:" >&2
+     printf '  %s\n' "${wrappers[@]%/gradlew}" >&2; exit 1 ;;
+esac
+
+# The origin property is named after the PROJECT, not the worktree — a worktree
+# is called android-design while the property is flugo.debugApiOrigin. Prefer
+# the remote's repo name; fall back to the parent dir, which in the
+# clone-for-wt layout (<repo>/<worktree>) is also the repo name.
+if [ -z "$prop" ]; then
+  origin_url=$(git -C "$root" remote get-url origin 2>/dev/null || true)
+  if [ -n "$origin_url" ]; then
+    repo=${origin_url##*/}; repo=${repo%.git}
+  else
+    repo=$(basename "$(dirname "$root")")
+  fi
+  prop="${repo}.debugApiOrigin"
+fi
+
+# An app that never reads the property needs no port and no phone tunnel, so
+# don't demand either. This is what lets the script serve a plain app too.
+if grep -rqF "\"$prop\"" "$gradle_dir" --include='*.gradle' --include='*.gradle.kts' 2>/dev/null; then
+  uses_origin=yes
+else
+  uses_origin=no
+fi
+
+if [ "$uses_origin" = yes ] && [ -z "$port" ]; then
+  if [ -f "$root/.env" ] && grep -q '^API_PORT=' "$root/.env"; then
+    port=$(grep '^API_PORT=' "$root/.env" | head -1 | cut -d= -f2 | tr -d '[:space:]')
+  else
+    echo "build-android: $gradle_dir reads $prop but no API_PORT in $root/.env" >&2
+    echo "               run scripts/setup-worktree.sh, or pass --port N" >&2
+    exit 1
+  fi
+fi
+
+# env.d/android.zsh sets these for interactive shells; a script invoked from
+# a hook or CI has neither, so fall back to the platform's usual SDK location.
+if [ -z "${ANDROID_HOME:-}" ]; then
+  for candidate in "$HOME/Android/Sdk" "$HOME/Library/Android/sdk"; do
+    [ -d "$candidate" ] && { export ANDROID_HOME="$candidate"; break; }
+  done
+fi
+[ -n "${ANDROID_HOME:-}" ] && export PATH="$ANDROID_HOME/platform-tools:$PATH"
+
+echo "== worktree: $root ($(git -C "$root" rev-parse --abbrev-ref HEAD))"
+echo "== gradle:   ${gradle_dir#$root/}"
+
+args=("$task")
+if [ "$uses_origin" = yes ]; then
+  echo "== origin:   -P$prop=http://127.0.0.1:$port"
+  args+=("-P$prop=http://127.0.0.1:$port")
+
+  # The debug network_security_config permits cleartext ONLY to localhost,
+  # 127.0.0.1 and 10.0.2.2. A LAN address crashes the app at launch by design,
+  # so `adb reverse` is not a convenience — it is the only way in. It also does
+  # NOT survive the phone dropping off wifi or an adb server restart, which is
+  # why this re-asserts it on every build.
+  if [ "$tunnel" = yes ]; then
+    command -v adb >/dev/null || {
+      echo "build-android: adb not on PATH (is ANDROID_HOME set?)" >&2; exit 1; }
+    echo "== adb reverse tcp:$port"
+    adb reverse "tcp:$port" "tcp:$port"
+  fi
+
+  # Warn rather than fail: you may be about to start the stack.
+  if command -v ss >/dev/null && ! ss -ltn 2>/dev/null | grep -q ":$port[[:space:]]"; then
+    echo "== WARNING: nothing listening on $port — the app will crash at launch"
+    echo "            until this worktree's API is up"
+  fi
+fi
+
+cd "$gradle_dir"
+./gradlew "${args[@]}"
