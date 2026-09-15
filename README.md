@@ -88,9 +88,12 @@ If the app rewrites its config file on launch (and would clobber a symlink), put
 ## Adding a new package
 
 - **macOS**: edit `extra/homebrew/Brewfile`, then `make init` (or `brew bundle --file=extra/homebrew/Brewfile`).
-- **Linux**: edit `extra/apt/packages.txt`, then `make init`. One package per line and
-  **no comments** — the Makefile feeds the whole file to `apt-get install` through
-  `xargs`, so any explanatory text becomes a package name and the install fails.
+- **Linux**: edit `extra/apt/packages.txt`, then `make init`. One package per line.
+  `#` comments and blank lines are fine — `apt-packages` strips them before handing the
+  list to `apt-get`. Worth a comment whenever a package's purpose isn't obvious from its
+  name (`postgresql-client` is there for `db-clone`, not for running a database).
+  A package that isn't in Debian's repos needs its apt source added in `bootstrap`
+  first — see how `gh` does it.
 
 ---
 
