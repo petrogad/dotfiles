@@ -92,7 +92,12 @@ unset _f
 
 # -- Prompt (starship) ---------------------------------------------------------
 
-znap eval starship 'starship init zsh'
+# Guarded, because `znap eval` caches whatever the command printed —
+# including the failure. On a box where starship isn't installed yet it caches
+# a 21-byte `#'starship init zsh'` and keeps replaying it AFTER starship is
+# installed, leaving a bare `%` prompt that looks like a broken dotfiles setup
+# rather than a stale cache. (Fix if you hit it: rm ~/.cache/zsh-snap/eval/starship.zsh*)
+command -v starship >/dev/null && znap eval starship 'starship init zsh'
 znap prompt
 
 # -- Completions ---------------------------------------------------------------
