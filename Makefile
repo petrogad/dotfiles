@@ -173,3 +173,13 @@ apt-packages:
 	else \
 		echo "No apt packages file found at extra/apt/packages.txt"; \
 	fi
+	@# Debian renames two of these to avoid clashing with other packages:
+	@# bat -> batcat, fd-find -> fdfind. Every doc, alias and muscle memory
+	@# says bat and fd, so put those names back.
+	@for pair in batcat:bat fdfind:fd; do \
+		have=$${pair%%:*}; want=$${pair##*:}; \
+		if command -v $$have >/dev/null 2>&1 && ! command -v $$want >/dev/null 2>&1; then \
+			echo "==> linking $$want -> $$have"; \
+			sudo ln -sf "$$(command -v $$have)" /usr/local/bin/$$want; \
+		fi; \
+	done

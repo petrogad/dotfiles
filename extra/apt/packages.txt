@@ -24,3 +24,15 @@ postgresql-client
 # Survives sleep, roaming and IP changes, unlike ssh — the difference between
 # reattaching to a remote tmux session and rebuilding it.
 mosh
+# The shell config aliases `ls` to lsd in five places, so without it a fresh
+# Linux box fails on the very first command you type.
+lsd
+# Prompt. Referenced by .zshrc; without it the prompt silently degrades.
+starship
+lazygit
+# Debian installs these as `batcat` and `fdfind` (name clashes with other
+# packages); `make apt-packages` symlinks them back to bat/fd afterwards.
+bat
+fzf
+zoxide
+

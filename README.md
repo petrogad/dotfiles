@@ -136,7 +136,10 @@ Karabiner-Elements overwrites its config file on launch, which breaks symlinks. 
 ## Tools expected on the system
 
 - **macOS**: `brew`, `stow`, `tmux`, `starship`, `wezterm`, `aerospace`, `hammerspoon`, `karabiner-elements`, `borders`, `lazygit`, `lsd`, `ripgrep`, `nano`, `nvm`, `pyenv`
-- **Linux**: `stow`, `tmux`, `starship`, `lazygit`, `lsd`, `ripgrep`, `nano`
+- **Linux**: `stow`, `tmux`, `starship`, `lazygit`, `lsd`, `ripgrep`, `nano`, `bat`, `fd`,
+  `fzf`, `zoxide`, `gh`, `mosh`, `postgresql-client` — all installed by `make init`.
+  Debian ships `bat` and `fd-find` under the names `batcat` and `fdfind`;
+  `make apt-packages` symlinks them back.
 
 `nano` is `$EDITOR` (see `universal/.config/zsh/env.d/editor.zsh`), so it is not
 optional. On macOS it must come from Homebrew: `/usr/bin/nano` is UW PICO wearing
