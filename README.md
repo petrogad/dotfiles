@@ -140,6 +140,12 @@ Karabiner-Elements overwrites its config file on launch, which breaks symlinks. 
   `fzf`, `zoxide`, `gh`, `mosh`, `postgresql-client` — all installed by `make init`.
   Debian ships `bat` and `fd-find` under the names `batcat` and `fdfind`;
   `make apt-packages` symlinks them back.
+- **Android SDK** is not installed by `make init` — it is ~500 MB and only some
+  machines need it. Install it to `~/Android/Sdk` (cmdline-tools, then
+  `sdkmanager`), and `env.d/android.zsh` wires up `ANDROID_HOME` and PATH if it
+  finds it. It deliberately puts the SDK's `platform-tools` ahead of any distro
+  `adb`: Debian ships 34.x against an SDK of 37.x, and a mismatched adb fails
+  with "server version doesn't match this client".
 - **Rust** comes from `rustup` (installed by `make bootstrap`), never the distro
   package. Debian 13 ships rustc 1.85 and `tmux-agent-mgr` needs 1.88 — on the
   distro toolchain the plugin's first-load build fails, no binary appears, and
