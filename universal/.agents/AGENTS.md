@@ -139,7 +139,16 @@ a branch's stack at `192.168.1.21:<port>` — check the generated `.env` for whi
 Builds and installs to a physical device from `forge-dev`. No emulator, and no
 Mac involved.
 
-    flugo-android [port]     # ~/.local/bin — sets up the tunnel, builds, installs
+    cd <worktree> && build-android          # that's the whole loop
+
+`build-android` takes no project name: it derives everything from where you are
+standing. It finds the Gradle project by walking the worktree (flugo keeps it at
+`apps/android`; a single-app repo has it at the root), reads that worktree's own
+`API_PORT` from its `.env`, and names the origin property after the repo the
+remote points at — so `flugo.debugApiOrigin`, not the worktree's name. Override
+with `--port N` or `--prop NAME`; `--no-tunnel` builds without a phone. A repo
+whose Gradle files never read the property is built plainly, with no port and no
+tunnel required.
 
 Two things that will otherwise waste an hour:
 
