@@ -32,9 +32,15 @@ channel="${CHANNEL:-announcements}"
 # OP_SERVICE_ACCOUNT_TOKEN, which `op` needs).
 [ ! -f ~/.zshrc.local ] || source ~/.zshrc.local
 
-# The token: env first, then 1Password. The agent's service account can read ONLY the
-# 'Kreinto Infra' vault, so the item must live there.
+# The token, in order: the env; the repo's git-ignored .env.local (this worktree, then the primary
+# `main` worktree beside it; flugo keeps it at ~/dev/flugo/main/.env.local on helios, the same file
+# apps/ios/scripts/testflight-announce.mjs reads); then 1Password. The agent's service account can
+# read ONLY the 'Kreinto Infra' vault.
+envtok() { [ -f "$1" ] && sed -nE 's/^[[:space:]]*(export[[:space:]]+)?DISCORD_BOT_TOKEN[[:space:]]*=[[:space:]]*["'"'"']?([^"'"'"']*)["'"'"']?[[:space:]]*$/\2/p' "$1" | head -1; }
+top=$(git rev-parse --show-toplevel 2>/dev/null)
 token="${DISCORD_BOT_TOKEN:-}"
+[ -n "$token" ] || token=$(envtok "$top/.env.local")
+[ -n "$token" ] || token=$(envtok "$(dirname "$top")/main/.env.local")
 [ -n "$token" ] || ! command -v op >/dev/null || \
   token=$(op read "${DISCORD_BOT_TOKEN_REF:-op://Kreinto Infra/discord-bot-token/credential}" 2>/dev/null || true)
 
@@ -45,14 +51,20 @@ ua='DiscordBot (https://github.com/kreinto-io, 1.0)'      # Discord requires thi
 **Never print, echo, log or commit the token.** It controls the bot on every server it's in. Send
 it only in the `Authorization: Bot …` header, and keep it out of your visible output.
 
-**If the token is missing:** the service account can't see it. Ask Pete to store it in vault
-**Kreinto Infra** as an API Credential named `discord-bot-token`, with the token in field
-`credential`. Or, if he keeps it elsewhere, have him set `DISCORD_BOT_TOKEN_REF` to its
-`op://…` reference in `~/.zshrc.local`. Meanwhile, hand him the approved draft to paste by hand,
+**If the token is missing** (for example on a machine without the repo's `.env.local`): ask Pete
+to add `DISCORD_BOT_TOKEN=…` to that repo's git-ignored `.env.local`. For machines without it,
+he can also store it in vault **Kreinto Infra** as an API Credential named `discord-bot-token`,
+with the token in field `credential`. Meanwhile, hand him the approved draft to paste by hand,
 so the announcement isn't lost.
 
 **Resolve the channel id once per project, then cache it.** Channel ids aren't secret, so they
-live in a plain JSON map:
+live in a plain JSON map. Known entries: **flugo** (UltiStats server `1547675218338644038`),
+`#announcements` = `1547685402809335848` (also hard-coded in `testflight-announce.mjs`), and
+`#general` = `1547675219127443539`.
+
+**flugo convention:** TestFlight build announcements go through `apps/ios/scripts/testflight.sh
+--announce` (it verifies the build is approved and de-duplicates). Use this skill for everything
+else: web features, Android releases, downtime.
 
 ```bash
 map="${AGENT_WORK_DIR:-$HOME/agents}/discord/channels.json"; mkdir -p "$(dirname "$map")"
