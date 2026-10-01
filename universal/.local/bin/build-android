@@ -1,34 +1,56 @@
 #!/usr/bin/env bash
-# Build + install an Android debug app from the worktree you are standing in,
-# pointed at that worktree's own dev API.
+# Build + install an Android debug app from the worktree you are standing in.
+# Dev builds target our own infra, never production: the default origin is
+# labs staging (https://<repo>.lab.kreinto.io), over HTTPS, with no tunnel.
 #
 # Examples of call:
 # build-android
-# => finds the Gradle project under the current worktree, reads API_PORT from
-#    its .env, tunnels that port to the phone, installs the debug build
+# => finds the Gradle project under the current worktree and installs the debug
+#    build pointed at labs staging
 #
-# build-android --port 4610
-# => same, but overrides the port
+# build-android --stack
+# => uses THIS worktree's own API_PORT from its .env, tunnelled to the phone
+#
+# build-android --origin http://127.0.0.1:4610
+# => explicit origin; the adb reverse tunnel is set up only for localhost URLs
 #
 # build-android --no-tunnel assembleDebug
 # => no device needed; just build
 set -e
 
 port=""
+origin=""
+stack=no
 task="installDebug"
 prop="${ANDROID_ORIGIN_PROP:-}"
 tunnel=yes
 
+# A flag's value must exist and must not itself be a flag.
+need_value() {
+  if [ $# -lt 2 ] || [ -z "$2" ] || [[ "$2" == -* ]]; then
+    echo "build-android: $1 needs a value" >&2; exit 1
+  fi
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --port) port="$2"; shift 2 ;;
-    --prop) prop="$2"; shift 2 ;;
+    --origin) need_value "$@"; origin="$2"; shift 2 ;;
+    --stack) stack=yes; shift ;;
+    --port) need_value "$@"; port="$2"; stack=yes; shift 2 ;;
+    --prop) need_value "$@"; prop="$2"; shift 2 ;;
     --no-tunnel) tunnel=no; shift ;;
-    -h|--help) sed -n '2,14p' "$0" | sed -e 's/^# //' -e 's/^#$//'; exit 0 ;;
+    -h|--help) sed -n '2,17p' "$0" | sed -e 's/^# //' -e 's/^#$//'; exit 0 ;;
     -*) echo "build-android: unknown option $1" >&2; exit 1 ;;
     *) task="$1"; shift ;;
   esac
 done
+
+if [ -n "$origin" ] && ! [[ "$origin" =~ ^https?://[^/[:space:]]+ ]]; then
+  echo "build-android: --origin must be an http(s) URL, got '$origin'" >&2; exit 1
+fi
+if [ -n "$port" ] && ! [[ "$port" =~ ^[0-9]+$ ]]; then
+  echo "build-android: --port must be a number, got '$port'" >&2; exit 1
+fi
 
 root=$(git rev-parse --show-toplevel 2>/dev/null) || {
   echo "build-android: not inside a git worktree (cd into one first)" >&2; exit 1; }
@@ -74,9 +96,49 @@ else
   uses_origin=no
 fi
 
-if [ "$uses_origin" = yes ] && [ -z "$port" ]; then
+if [ "$uses_origin" = no ] && { [ -n "$origin" ] || [ "$stack" = yes ]; }; then
+  echo "build-android: WARNING $gradle_dir never reads $prop; --origin/--stack/--port have no effect" >&2
+fi
+
+if [ "$uses_origin" = yes ] && [ -n "$origin" ] && [ "$stack" = yes ]; then
+  echo "build-android: --origin and --stack/--port are mutually exclusive" >&2; exit 1
+fi
+
+# Origin selection. Default is labs staging; --stack is the worktree's own API.
+if [ "$uses_origin" = yes ] && [ "$stack" = no ]; then
+  if [ -z "$origin" ]; then
+    # The default only makes sense for a property named <repo>.debugApiOrigin.
+    case "$prop" in
+      *.debugApiOrigin) lab_repo="${prop%.debugApiOrigin}" ;;
+      *) echo "build-android: no default origin for property '$prop'; pass --origin or --stack" >&2; exit 1 ;;
+    esac
+    origin="https://$lab_repo.lab.kreinto.io"
+    # *.lab.kreinto.io is a LAN wildcard, so a repo with no app resolves and only fails at TLS
+    # at runtime. Probe before building.
+    if ! curl -fsS -m 5 -o /dev/null "$origin/health" 2>/dev/null; then
+      echo "build-android: no lab host for $lab_repo ($origin/health unreachable); use --stack or --origin" >&2
+      exit 1
+    fi
+  fi
+  # Only a localhost origin needs the tunnel (its port is the one to reverse).
+  if [[ "$origin" =~ ^http://(localhost|127\.0\.0\.1)/?$ ]]; then
+    # adb reverse cannot bind a privileged port on the phone, so the port must be explicit.
+    echo "build-android: a localhost --origin needs an explicit port (http://127.0.0.1:<port>)" >&2; exit 1
+  elif [[ "$origin" =~ ^http://(localhost|127\.0\.0\.1):([0-9]+)/?$ ]]; then
+    port="${BASH_REMATCH[2]}"
+  else
+    port=""
+  fi
+fi
+
+if [ "$uses_origin" = yes ] && [ "$stack" = yes ] && [ -z "$port" ]; then
   if [ -f "$root/.env" ] && grep -q '^API_PORT=' "$root/.env"; then
-    port=$(grep '^API_PORT=' "$root/.env" | head -1 | cut -d= -f2 | tr -d '[:space:]')
+    # Tolerate quotes, whitespace and a trailing "# comment".
+    port=$(grep '^API_PORT=' "$root/.env" | head -1 | cut -d= -f2- \
+      | sed -e 's/[[:space:]]*#.*$//' -e "s/[\"']//g" -e 's/[[:space:]]//g')
+    if ! [[ "$port" =~ ^[0-9]+$ ]]; then
+      echo "build-android: API_PORT in $root/.env is not a number ('$port')" >&2; exit 1
+    fi
   else
     echo "build-android: $gradle_dir reads $prop but no API_PORT in $root/.env" >&2
     echo "               run scripts/setup-worktree.sh, or pass --port N" >&2
@@ -93,20 +155,40 @@ if [ -z "${ANDROID_HOME:-}" ]; then
 fi
 [ -n "${ANDROID_HOME:-}" ] && export PATH="$ANDROID_HOME/platform-tools:$PATH"
 
+# The Pixel 5 is listed twice (IP:port and the mDNS name), and both adb and gradle refuse to pick.
+# Choose the IP:port entry, or stop with the list.
+if [ -z "${ANDROID_SERIAL:-}" ] && command -v adb >/dev/null \
+    && { [[ "$task" == install* ]] || { [ -n "$port" ] && [ "$tunnel" = yes ]; }; }; then
+  devices=()
+  while IFS= read -r line; do devices+=("$line"); done < <(adb devices | awk 'NR>1 && $2=="device"{print $1}')
+  if [ ${#devices[@]} -gt 1 ]; then
+    ipdev=()
+    for d in "${devices[@]}"; do [[ "$d" =~ ^[0-9.]+:[0-9]+$ ]] && ipdev+=("$d"); done
+    if [ ${#ipdev[@]} -eq 1 ]; then
+      export ANDROID_SERIAL="${ipdev[0]}"
+      echo "== device:   ANDROID_SERIAL=$ANDROID_SERIAL (adb lists ${#devices[@]} entries)"
+    else
+      echo "build-android: more than one device; set ANDROID_SERIAL to one of:" >&2
+      printf '  %s\n' "${devices[@]}" >&2; exit 1
+    fi
+  fi
+fi
+
 echo "== worktree: $root ($(git -C "$root" rev-parse --abbrev-ref HEAD))"
 echo "== gradle:   ${gradle_dir#$root/}"
 
 args=("$task")
 if [ "$uses_origin" = yes ]; then
-  echo "== origin:   -P$prop=http://127.0.0.1:$port"
-  args+=("-P$prop=http://127.0.0.1:$port")
+  [ -n "$origin" ] || origin="http://127.0.0.1:$port"
+  echo "== origin:   -P$prop=$origin"
+  args+=("-P$prop=$origin")
 
   # The debug network_security_config permits cleartext ONLY to localhost,
   # 127.0.0.1 and 10.0.2.2. A LAN address crashes the app at launch by design,
   # so `adb reverse` is not a convenience — it is the only way in. It also does
   # NOT survive the phone dropping off wifi or an adb server restart, which is
   # why this re-asserts it on every build.
-  if [ "$tunnel" = yes ]; then
+  if [ -n "$port" ] && [ "$tunnel" = yes ]; then
     command -v adb >/dev/null || {
       echo "build-android: adb not on PATH (is ANDROID_HOME set?)" >&2; exit 1; }
     echo "== adb reverse tcp:$port"
@@ -114,7 +196,7 @@ if [ "$uses_origin" = yes ]; then
   fi
 
   # Warn rather than fail: you may be about to start the stack.
-  if command -v ss >/dev/null && ! ss -ltn 2>/dev/null | grep -q ":$port[[:space:]]"; then
+  if [ -n "$port" ] && command -v ss >/dev/null && ! ss -ltn 2>/dev/null | grep -q ":$port[[:space:]]"; then
     echo "== WARNING: nothing listening on $port — the app will crash at launch"
     echo "            until this worktree's API is up"
   fi

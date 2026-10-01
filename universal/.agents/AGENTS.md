@@ -139,18 +139,27 @@ a branch's stack at `192.168.1.21:<port>` — check the generated `.env` for whi
 Builds and installs to a physical device from `forge-dev`. No emulator, and no
 Mac involved.
 
-    cd <worktree> && build-android          # that's the whole loop
+    cd <worktree> && build-android            # labs staging over HTTPS, no tunnel
+    cd <worktree> && build-android --stack    # this worktree's own API_PORT, tunnelled
+    cd <worktree> && build-android --origin <url>
+
+Dev builds target our own infra, never production. The default origin is labs
+staging (`https://<repo>.lab.kreinto.io`); `--stack` is the worktree's dev stack
+through `adb reverse`; `--origin <url>` is anything else, tunnelled only when it
+is a localhost URL. On flugo the debug app also ignores the production Clerk key,
+so it shows the password sign-in: `testingk@k.invalid` / `password1`.
 
 `build-android` takes no project name: it derives everything from where you are
 standing. It finds the Gradle project by walking the worktree (flugo keeps it at
-`apps/android`; a single-app repo has it at the root), reads that worktree's own
-`API_PORT` from its `.env`, and names the origin property after the repo the
-remote points at — so `flugo.debugApiOrigin`, not the worktree's name. Override
-with `--port N` or `--prop NAME`; `--no-tunnel` builds without a phone. A repo
+`apps/android`; a single-app repo has it at the root), and names the origin
+property after the repo the remote points at — so `flugo.debugApiOrigin`, not the
+worktree's name. Override the port with `--port N` (implies `--stack`) or the
+property with `--prop NAME`; `--no-tunnel` builds without a phone. A repo
 whose Gradle files never read the property is built plainly, with no port and no
 tunnel required.
 
-Two things that will otherwise waste an hour:
+Two things that will otherwise waste an hour (both apply to localhost origins,
+i.e. `--stack`):
 
 - **`adb reverse` is mandatory, not a convenience.** `ApiEnvironment.kt` and the
   debug `network_security_config.xml` both permit cleartext only to `localhost`,
@@ -162,8 +171,9 @@ Two things that will otherwise waste an hour:
   down. Re-run the helper.
 
 Demo sign-in for seeded stacks: `jordan@northgateultimate.org` /
-`demo-password-1`. Staging on `labs` has **no** demo users — `SEED_DEMO=false` is
-refused under `NODE_ENV=production`.
+`demo-password-1`. Staging on `labs` has no demo users — `SEED_DEMO=false` is
+refused under `NODE_ENV=production` — but it does have the dev accounts
+`testingk@k.invalid` / `testingi@k.invalid`, password `password1`.
 
 ### Deploys
 
