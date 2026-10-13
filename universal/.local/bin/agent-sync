@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # agent-sync — sync ~/agents with its private GitHub remote via git.
-# Safe unattended (launchd): quiet no-op when offline, locked, or mid-conflict.
+# Safe unattended (launchd / systemd timer): quiet no-op when offline, locked,
+# paused, or mid-conflict. What syncs is the repo's .gitignore plus a size guard:
+# a NEW file over AGENT_SYNC_MAX_MB (default 10) is never added — it goes into
+# .git/info/exclude so it stays on this machine. Already-tracked files sync at
+# any size.
 set -euo pipefail
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
@@ -8,6 +12,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
 AGENTS_DIR="$HOME/agents"
 LOCK_DIR="${TMPDIR:-/tmp}/agent-sync.lock"
 LOG="$HOME/.local/state/agent-sync.log"
+MAX_MB="${AGENT_SYNC_MAX_MB:-10}"
 
 mkdir -p "$(dirname "$LOG")"
 log() { printf '%s agent-sync: %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$1" >>"$LOG"; }
@@ -20,6 +25,10 @@ trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 cd "$AGENTS_DIR"
 
+# agent-workspace-init leaves this behind so a freshly adopted tree is reviewed
+# before its first push. Remove it to start syncing.
+if [ -f .git/agent-sync-paused ]; then log "paused (.git/agent-sync-paused); skip"; exit 0; fi
+
 # Never fight a human (or a previous failed run): bail while a rebase/merge is
 # in flight so manual resolution isn't clobbered.
 if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ] || [ -f .git/MERGE_HEAD ]; then
@@ -29,6 +38,15 @@ fi
 
 # Commit local changes first so pull --rebase replays them cleanly.
 git add -A
+while IFS= read -r -d '' f; do
+  [ -f "$f" ] && [ ! -L "$f" ] || continue   # symlinks are stored as links, not content
+  size=$(( $(wc -c <"$f" 2>/dev/null || echo 0) ))
+  if [ "$size" -gt $((MAX_MB * 1024 * 1024)) ]; then
+    git reset -q -- "$f"
+    printf '/%s\n' "$(printf '%s' "$f" | sed 's/[][*?\\!#]/\\&/g')" >>.git/info/exclude
+    log "kept local (over ${MAX_MB} MB): $f"
+  fi
+done < <(git diff --cached --name-only --diff-filter=A -z)
 if ! git diff --cached --quiet; then
   git commit -q -m "sync: $(hostname -s) $(date '+%Y-%m-%d %H:%M')" || { log "commit failed"; exit 0; }
   log "committed local changes"
