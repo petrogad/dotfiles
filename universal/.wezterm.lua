@@ -49,4 +49,25 @@ config.keys = {
   },
 }
 
+-- Cmd-click opens a hyperlink even while the app has the mouse — tmux runs with
+-- `mouse on`, so a plain click goes to tmux and never reaches WezTerm's link
+-- handling. `mouse_reporting = true` makes these bindings apply in that state.
+-- The Down is swallowed so tmux doesn't also see a click and move the cursor.
+-- Links inside tmux also need the client to have the `hyperlinks` terminal
+-- feature, which tmux-agent-mgr's conf enables (it applies on attach).
+config.mouse_bindings = {
+  {
+    event = { Down = { streak = 1, button = "Left" } },
+    mods = "CMD",
+    mouse_reporting = true,
+    action = wezterm.action.Nop,
+  },
+  {
+    event = { Up = { streak = 1, button = "Left" } },
+    mods = "CMD",
+    mouse_reporting = true,
+    action = wezterm.action.OpenLinkAtMouseCursor,
+  },
+}
+
 return config

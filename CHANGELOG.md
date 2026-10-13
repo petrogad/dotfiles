@@ -4,6 +4,10 @@ All notable changes to this dotfiles repo. Newest entries on top.
 
 Format: `YYYY-MM-DD — short description`. Group related changes under one date.
 
+## 2026-10-13
+
+- Hyperlinks inside tmux are clickable: tmux now passes OSC 8 through (`terminal-features ',*:hyperlinks'` in `tmux.conf.user`, applied per client on attach), and WezTerm opens them on **Cmd-click** even while tmux has the mouse (`mouse_bindings` with `mouse_reporting = true`, the Down swallowed so tmux doesn't also take the click). Covers Claude Code's links as well as the tmux-agent-mgr card.
+
 ## 2026-10-12
 
 - Dropped the notes scratchpad. The `tmux-agent-mgr` fork no longer has a `note` subcommand or sidebar panel (removed on the plugin side), so `AGENTS.md` loses its scratchpad section, the `todoist` skill stops telling agents to file a note, and the `agent-mgr` shim's comment no longer advertises it. The **Decision points** rule survives without it: guess-and-flag still applies when I'm away, but the flag now goes in the agent's final summary (and handoff doc, if any) instead of a panel.
