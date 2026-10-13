@@ -17,6 +17,7 @@ make backup    # snapshot existing real files in $HOME to ~/dotfiles-backup/<tim
 make init      # install packages: brew bundle (macOS) or apt-get (Linux). Bootstraps stow if missing.
 make osx       # stow universal/ + osx/, copy karabiner.json, run hammerspoon-pre-dots
 make linux     # stow universal/ + linux/
+make agent-workspace  # clone or adopt ~/agents onto its private remote (both osx and linux run it)
 ```
 
 `make osx` / `make linux` use `stow --restow`, so they're idempotent — re-running just refreshes symlinks. The standard inner-loop after editing a config in this repo is: re-run `make osx` (only needed when adding a new file; existing symlinks already point into the repo).
@@ -60,6 +61,10 @@ Because Karabiner is copied (not symlinked), GUI changes write to `~/.config/kar
 ```bash
 cp ~/.config/karabiner/karabiner.json extra/karabiner/karabiner.json
 ```
+
+### Agent workspace (`~/agents`)
+
+The research / plans / handoffs docs from the `agent-docs` skill live in `~/agents`, a clone of a private repo whose URL is `AGENT_WORK_REMOTE` (set by dotfiles-private). `universal/.local/bin/agent-sync` commits, pulls with rebase and pushes every 15 min, driven by a LaunchAgent on macOS (`extra/launchd/`) and a systemd user timer on Linux (`extra/systemd/`); `make agent-sync` installs whichever applies. `make agent-workspace` runs `agent-workspace-init`: it clones into a missing `~/agents`, or adopts an existing one without overwriting anything and leaves `.git/agent-sync-paused` until someone reviews `git status` and removes it. The repo's own `.gitignore` decides what syncs, and agent-sync never adds a new file over `AGENT_SYNC_MAX_MB` (default 10): it is listed in `.git/info/exclude` and stays on that machine. Log: `~/.local/state/agent-sync.log`.
 
 ### `dev` command
 

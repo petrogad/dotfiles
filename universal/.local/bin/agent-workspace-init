@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# agent-workspace-init — make ~/agents a clone of its private remote
+# ($AGENT_WORK_REMOTE, set by dotfiles-private) so agent-sync can sync it.
+#
+#   no ~/agents        → plain clone; syncing starts on the next timer tick.
+#   ~/agents, no .git  → adopt it: the remote's .git moves in, files the remote
+#                        has and this machine lacks are checked out, and nothing
+#                        local is overwritten. Sync is PAUSED until you review:
+#                          cd ~/agents && git status
+#                          rm ~/agents/.git/agent-sync-paused && agent-sync
+#   ~/agents is a repo → nothing to do.
+set -euo pipefail
+
+dir="$HOME/agents"
+# A fresh `make osx` stows private.zsh in the same run, before any new shell has
+# read it, so fall back to reading it directly.
+priv="$HOME/.config/zsh/env.d/private.zsh"
+if [ -z "${AGENT_WORK_REMOTE:-}" ] && [ -f "$priv" ]; then
+  # shellcheck source=/dev/null
+  . "$priv"
+fi
+remote="${AGENT_WORK_REMOTE:-}"
+
+if [ -d "$dir/.git" ]; then echo "agent-workspace: $dir is already a git repo."; exit 0; fi
+if [ -z "$remote" ]; then
+  echo "agent-workspace: AGENT_WORK_REMOTE is not set (run make private, open a new shell) — skipping."
+  exit 0
+fi
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+git clone -q "$remote" "$tmp/agents"
+
+if [ ! -e "$dir" ]; then
+  mv "$tmp/agents" "$dir"
+  echo "agent-workspace: cloned $remote into $dir."
+  exit 0
+fi
+
+mv "$tmp/agents/.git" "$dir/.git"
+touch "$dir/.git/agent-sync-paused"
+cd "$dir"
+git reset -q   # index = remote HEAD; the working tree is untouched
+
+restored=0
+while IFS= read -r -d '' f; do
+  git checkout -q -- "$f"
+  restored=$((restored + 1))
+done < <(git ls-files -z --deleted)
+
+differs="$(git diff --name-only)"
+untracked="$(git ls-files -o --exclude-standard | wc -l | tr -d ' ')"
+
+echo "agent-workspace: adopted $dir onto $remote (sync paused)."
+echo "  $restored file(s) checked out from the remote"
+echo "  $untracked local file(s) will be added (subject to .gitignore and the size guard)"
+if [ -n "$differs" ]; then
+  echo "  files where this machine's copy differs from the remote's (local kept):"
+  printf '%s\n' "$differs" | sed 's/^/    /'
+fi
+echo "Review with: cd $dir && git status"
+echo "Then start syncing: rm $dir/.git/agent-sync-paused && agent-sync"

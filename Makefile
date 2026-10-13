@@ -3,7 +3,7 @@ DOTFILES := $(CURDIR)
 PRIVATE ?= $(abspath $(DOTFILES)/../dotfiles-private)
 UNAME := $(shell uname -s)
 
-.PHONY: init osx linux universal-dots osx-dots agents private agent-sync tpm homebrew apt-packages backup bootstrap karabiner
+.PHONY: init osx linux universal-dots osx-dots agents private agent-sync agent-workspace tpm homebrew apt-packages backup bootstrap karabiner
 
 # Bootstrap: ensure stow is installed before anything else
 bootstrap:
@@ -71,6 +71,7 @@ BACKUP_TARGETS := \
 	$(HOME)/.claude/CLAUDE.md \
 	$(HOME)/.local/bin/agent-mgr \
 	$(HOME)/.local/bin/agent-sync \
+	$(HOME)/.local/bin/agent-workspace-init \
 	$(HOME)/.local/bin/tmux-session-popup
 
 backup:
@@ -95,12 +96,12 @@ init:
 	@exit 1
 endif
 
-osx: universal-dots private agents osx-dots karabiner tpm agent-sync
+osx: universal-dots private agents osx-dots karabiner tpm agent-sync agent-workspace
 
 osx-dots:
 	stow --restow --no-folding --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" osx
 
-linux: universal-dots private agents tpm
+linux: universal-dots private agents tpm agent-sync agent-workspace
 
 universal-dots:
 	stow --restow --no-folding --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" universal
@@ -165,21 +166,36 @@ karabiner:
 	@mkdir -p "$(HOME)/.config/karabiner"
 	cp "$(DOTFILES)/extra/karabiner/karabiner.json" "$(HOME)/.config/karabiner/karabiner.json"
 
-# Install + load the agent-sync LaunchAgent (macOS): git-syncs ~/agents with
-# its private GitHub remote every 15 min. The plist is a template — __HOME__ is
+# Install the agent-sync timer: git-syncs ~/agents with its private remote every
+# 15 min. macOS: a LaunchAgent. The plist is a template — __HOME__ is
 # sed-substituted because launchd expands no variables and usernames differ
 # across machines — and copied (not stowed) since launchd refuses symlinked
-# plists. bootout-then-bootstrap keeps it idempotent.
+# plists. bootout-then-bootstrap keeps it idempotent. Linux: a systemd user
+# timer, plus lingering so it runs without an open login session.
 agent-sync:
-	@src="$(DOTFILES)/extra/launchd/com.pete.agent-sync.plist"; \
-	dst="$(HOME)/Library/LaunchAgents/com.pete.agent-sync.plist"; \
-	if [ "$(UNAME)" = "Darwin" ] && [ -f "$$src" ]; then \
+	@if [ "$(UNAME)" = "Darwin" ]; then \
+		src="$(DOTFILES)/extra/launchd/com.pete.agent-sync.plist"; \
+		dst="$(HOME)/Library/LaunchAgents/com.pete.agent-sync.plist"; \
 		mkdir -p "$(HOME)/Library/LaunchAgents" "$(HOME)/.local/state"; \
 		sed "s|__HOME__|$(HOME)|g" "$$src" > "$$dst"; \
 		domain="gui/$$(id -u)"; \
 		launchctl bootout "$$domain/com.pete.agent-sync" 2>/dev/null || true; \
 		launchctl bootstrap "$$domain" "$$dst"; \
+	elif command -v systemctl >/dev/null 2>&1; then \
+		dst="$(HOME)/.config/systemd/user"; \
+		mkdir -p "$$dst" "$(HOME)/.local/state"; \
+		cp "$(DOTFILES)/extra/systemd/agent-sync.service" "$(DOTFILES)/extra/systemd/agent-sync.timer" "$$dst/"; \
+		systemctl --user daemon-reload; \
+		systemctl --user enable --now agent-sync.timer; \
+		loginctl enable-linger "$$(id -un)" 2>/dev/null || \
+			echo "agent-sync: could not enable lingering; the timer only runs while you are logged in (sudo loginctl enable-linger $$(id -un))."; \
 	fi
+
+# Make ~/agents a clone of $AGENT_WORK_REMOTE (set by dotfiles-private), or
+# adopt an existing ~/agents without overwriting anything and pause syncing
+# until it is reviewed. A no-op once ~/agents is a repo. See agent-workspace-init.
+agent-workspace:
+	@"$(DOTFILES)/universal/.local/bin/agent-workspace-init"
 
 # Clone TPM if missing, then install the plugins listed in @tpm_plugins.
 # install_plugins reads @tpm_plugins + TMUX_PLUGIN_MANAGER_PATH from the running

@@ -1,0 +1,8 @@
+# Installed to ~/.config/systemd/user by `make agent-sync` on Linux.
+# The macOS twin is extra/launchd/com.pete.agent-sync.plist.
+[Unit]
+Description=Sync ~/agents with its private git remote
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/agent-sync
