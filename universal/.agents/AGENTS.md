@@ -3,8 +3,9 @@
 Agent-agnostic standing instructions — the single source of truth for every agent, and the only
 place these belong. `make agents` builds `~/.agents/AGENTS.md` from this file plus, when present,
 the private overlay in `dotfiles-private/agents/AGENTS.md` (machine names, addresses, accounts —
-anything that should not be public). Codex reads `~/.agents/AGENTS.md` natively; Claude Code reads
-`~/.claude/CLAUDE.md`, a symlink to it, so both see the same words. Add standing instructions here
+anything that should not be public). Codex reads a copy at `~/.codex/AGENTS.md` (installer blocks
+such as codebase-memory's carried over); Claude Code reads `~/.claude/CLAUDE.md`, a symlink to it, so
+both see the same words. Add standing instructions here
 (or in the overlay if they are private), not in either agent's own config or the built file, and
 re-run `make agents`. Grow this over time.
 

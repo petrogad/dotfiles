@@ -117,6 +117,13 @@ universal-dots:
 # private overlay appended when $(PRIVATE) exists — so machine names, addresses
 # and accounts never land in this public repo. Edit the sources and re-run.
 #
+# Codex reads its global instructions from $CODEX_HOME/AGENTS.md (~/.codex), not
+# ~/.agents, and installers such as codebase-memory-mcp write marked blocks
+# (<!-- name:start --> … <!-- name:end -->) into that same file. So it is a COPY
+# of the built file with those blocks carried over, rebuilt on every run, and not
+# a symlink, which would let an installer write into the built file. A file there
+# with any other content of its own is left alone with a message.
+#
 # ~/.claude/CLAUDE.md is symlinked at the built file rather than being a stub
 # that imports it: Claude Code reads that path as user-level memory whatever it
 # contains, so a symlink needs no import syntax to be right. A real file there is
@@ -145,6 +152,23 @@ agents:
 	  if [ -f "$$priv_src/AGENTS.md" ]; then printf '\n'; cat "$$priv_src/AGENTS.md"; fi; \
 	} > "$$built"; \
 	if [ ! -f "$$priv_src/AGENTS.md" ]; then echo "agents: no $$priv_src/AGENTS.md — built the public part only."; fi; \
+	codex_home="$${CODEX_HOME:-$(HOME)/.codex}"; codex_md="$$codex_home/AGENTS.md"; \
+	if [ -d "$$codex_home" ]; then \
+		own=""; \
+		if [ -f "$$codex_md" ] && ! head -1 "$$codex_md" | grep -q '^<!-- Built by `make agents`'; then \
+			own="$$(awk '/^<!-- [A-Za-z0-9_.-]+:start -->/{f=1} !f && NF {print} /^<!-- [A-Za-z0-9_.-]+:end -->/{f=0}' "$$codex_md")"; \
+		fi; \
+		if [ -n "$$own" ]; then \
+			echo "agents: $$codex_md has content of its own — leaving it alone."; \
+			echo "        Move that content into AGENTS.md (or the private overlay) and re-run."; \
+		else \
+			tmp="$$(mktemp)"; cp "$$built" "$$tmp"; \
+			if [ -f "$$codex_md" ]; then \
+				awk '/^<!-- [A-Za-z0-9_.-]+:start -->/{f=1; print ""} f {print} /^<!-- [A-Za-z0-9_.-]+:end -->/{f=0}' "$$codex_md" >> "$$tmp"; \
+			fi; \
+			rm -f "$$codex_md"; mv "$$tmp" "$$codex_md"; chmod 644 "$$codex_md"; \
+		fi; \
+	fi; \
 	claude_md="$(HOME)/.claude/CLAUDE.md"; \
 	if [ -e "$$claude_md" ] && [ ! -L "$$claude_md" ]; then \
 		echo "agents: $$claude_md exists and is not a symlink — leaving it alone."; \
