@@ -1,73 +1,31 @@
 # Claude Code dotfiles
 
-Stowed bits of `~/.claude/`. Two scripts that work together with the twork tmux setup to surface Claude's state at a glance.
+Stowed bits of `~/.claude/`: two hook scripts. `make claude` (run by `make osx` / `make linux`)
+registers them in `~/.claude/settings.json`. That file is never stowed because it holds
+per-machine state such as `enabledPlugins`, so the target merges its entries in with
+`extra/claude/merge-hooks.jq` and leaves every other hook alone. It is idempotent, keeps the
+previous file as `settings.json.bak`, and skips a file that isn't valid JSON.
 
-## What you see
+## `hooks/agent-mgr-hook`
 
-The tmux window name reflects Claude's state, mirrored across the matching window in both `runtime` and `agent` twork sessions:
+Forwards Claude Code's hooks to [tmux-agent-mgr](https://github.com/petrogad/tmux-agent-mgr).
+The plugin already shows each agent's state by watching processes. With the hooks it also gets
+the agent's own report: why it is blocked, permission mode, subagents, task progress. `make
+claude` registers this hook for every event in the plugin's `hooks/hooks.json`, so a plugin
+update that adds an event only needs a re-run. If the plugin isn't installed, the hook exits 0
+silently. Without the plugin at `make claude` time, only the banner is wired; run it again after
+`make tpm`.
 
-| State | Window name | How it clears |
-|---|---|---|
-| working | `⠋myproject` | flips to `myproject` on `Stop` |
-| done | `myproject` + window flagged red | red flag clears when you focus the window |
-| needs input | `?myproject` + window flagged red | both clear when you focus the window |
+## `hooks/notify-banner.sh`
 
-The "red flag" is tmux's built-in `monitor-bell` flag — `notify-tmux.sh` writes a BEL byte to a pane in each matching window, which `window-status-bell-style` (in `~/.config/tmux/tmux.conf.user`) renders as a red, reversed window-status entry. tmux clears the flag automatically the next time the window is selected. No glyph for "done" — the red flag is enough.
-
-The `⠋` working glyph is intentionally space-less so the existing `after-select-window` sync hook in `twork-init` parses `agent:#{window_name}` as a single shell token. Spaces in the prefix would split it.
-
-## `hooks/notify-tmux.sh`
-
-Wired to `UserPromptSubmit`, `Stop`, and `Notification`:
-
-- **`UserPromptSubmit`** — adds `⠋` prefix in both sessions. Silent (no bell, no banner — you just hit enter).
-- **`Stop`** — strips any prefix in both sessions, rings the bell on a pane in each matching window, fires a "Claude finished" macOS banner with the Hero sound when unfocused.
-- **`Notification`** — adds `?` prefix in both sessions, rings the bell, fires a "Claude needs input" banner.
-
-The macOS banner is suppressed when the originating pane is the currently-focused pane in any attached client (no banner spam while you're already looking at the response).
-
-## `hooks/tmux-clear-indicator.sh`
-
-Wired into tmux's `after-select-window` hook by `twork-init` (in `~/.config/zsh/tmux`). Strips the `?` prefix from the focused window's name in both sessions. Working `⠋` is left alone — focusing while Claude is still thinking doesn't stop it. Done has no glyph to handle.
-
-## One-time setup per machine
-
-`~/.claude/settings.json` is intentionally **not** stowed (it holds per-machine state like `enabledPlugins`). Merge this into it:
-
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      { "hooks": [{ "type": "command", "command": "~/.claude/hooks/notify-tmux.sh" }] }
-    ],
-    "Stop": [
-      { "hooks": [{ "type": "command", "command": "~/.claude/hooks/notify-tmux.sh" }] }
-    ],
-    "Notification": [
-      { "hooks": [{ "type": "command", "command": "~/.claude/hooks/notify-tmux.sh" }] }
-    ]
-  }
-}
-```
-
-Or with `jq`:
-
-```bash
-jq '.hooks = {
-  UserPromptSubmit: [{ hooks: [{ type: "command", command: "~/.claude/hooks/notify-tmux.sh" }] }],
-  Stop: [{ hooks: [{ type: "command", command: "~/.claude/hooks/notify-tmux.sh" }] }],
-  Notification: [{ hooks: [{ type: "command", command: "~/.claude/hooks/notify-tmux.sh" }] }]
-}' ~/.claude/settings.json > ~/.claude/settings.json.new && mv ~/.claude/settings.json.new ~/.claude/settings.json
-```
-
-If you already have twork sessions running when you pull this change, the `after-select-window` hook for clearing indicators won't be installed on them. Either restart tmux (`twork-nuke && start a new project`) or manually run the same `tmux set-hook -a ...` commands from `twork-init` against the live sessions.
+On `Stop` and `Notification`, shows a macOS banner ("Claude finished" / "Claude needs input")
+with the Hero sound. It is suppressed when the pane Claude runs in is the active pane of a
+window an attached tmux client is showing, i.e. when you are already looking at it. It does
+nothing on Linux, so an agent on a remote box won't banner the Mac.
 
 ## Smoke test
 
 ```bash
-echo '{"hook_event_name":"UserPromptSubmit","cwd":"'"$PWD"'"}' | ~/.claude/hooks/notify-tmux.sh
-echo '{"hook_event_name":"Stop","cwd":"'"$PWD"'"}'             | ~/.claude/hooks/notify-tmux.sh
-echo '{"hook_event_name":"Notification","cwd":"'"$PWD"'"}'     | ~/.claude/hooks/notify-tmux.sh
+echo '{"hook_event_name":"Stop","cwd":"'"$PWD"'"}' | ~/.claude/hooks/notify-banner.sh   # banner unless this pane is focused
+echo '{"hook_event_name":"Stop","cwd":"'"$PWD"'"}' | ~/.claude/hooks/agent-mgr-hook claude stop; echo $?   # 0
 ```
-
-From inside a tmux pane, each event should flip the indicator on the current window in both runtime + agent sessions. Stop/Notification also bell + banner (when unfocused). UserPromptSubmit is silent.

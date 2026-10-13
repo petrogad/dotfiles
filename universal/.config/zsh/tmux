@@ -17,11 +17,6 @@ twork-init() {
     'run-shell "if [ \"$(tmux show-environment -t agent TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t agent -u TWORK_SYNCING; else tmux set-environment -t runtime TWORK_SYNCING 1; tmux set-environment -t adhoc TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux select-window -t adhoc:#{window_name} 2>/dev/null; fi; true"'
   tmux set-hook -t adhoc after-select-window \
     'run-shell "if [ \"$(tmux show-environment -t adhoc TWORK_SYNCING 2>/dev/null)\" = \"TWORK_SYNCING=1\" ]; then tmux set-environment -t adhoc -u TWORK_SYNCING; else tmux set-environment -t runtime TWORK_SYNCING 1; tmux set-environment -t agent TWORK_SYNCING 1; tmux select-window -t runtime:#{window_name} 2>/dev/null; tmux select-window -t agent:#{window_name} 2>/dev/null; fi; true"'
-  # Strip Claude status indicators (✓/?) from the focused window name
-  for s in runtime agent adhoc; do
-    tmux set-hook -at "$s" after-select-window \
-      'run-shell "~/.claude/hooks/tmux-clear-indicator.sh"'
-  done
   _twork_needs_cleanup=1
 }
 

@@ -3,7 +3,7 @@ DOTFILES := $(CURDIR)
 PRIVATE ?= $(abspath $(DOTFILES)/../dotfiles-private)
 UNAME := $(shell uname -s)
 
-.PHONY: init osx linux universal-dots osx-dots agents private agent-sync agent-workspace tpm homebrew apt-packages backup bootstrap karabiner
+.PHONY: init osx linux universal-dots osx-dots agents private agent-sync agent-workspace claude tpm homebrew apt-packages backup bootstrap karabiner
 
 # Bootstrap: ensure stow is installed before anything else
 bootstrap:
@@ -96,12 +96,12 @@ init:
 	@exit 1
 endif
 
-osx: universal-dots private agents osx-dots karabiner tpm agent-sync agent-workspace
+osx: universal-dots private agents osx-dots karabiner tpm claude agent-sync agent-workspace
 
 osx-dots:
 	stow --restow --no-folding --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" osx
 
-linux: universal-dots private agents tpm agent-sync agent-workspace
+linux: universal-dots private agents tpm claude agent-sync agent-workspace
 
 universal-dots:
 	stow --restow --no-folding --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" universal
@@ -220,6 +220,30 @@ agent-sync:
 # until it is reviewed. A no-op once ~/agents is a repo. See agent-workspace-init.
 agent-workspace:
 	@"$(DOTFILES)/universal/.local/bin/agent-workspace-init"
+
+# Merge this repo's Claude Code hooks into ~/.claude/settings.json, which is
+# never stowed (it holds per-machine state such as enabledPlugins). Adds the
+# tmux-agent-mgr forwarder for every event the plugin's hooks.json lists (none
+# if TPM hasn't installed it yet, so run after `tpm`) plus the macOS banner, and
+# leaves every other hook alone; see extra/claude/merge-hooks.jq. A settings
+# file that isn't valid JSON is left untouched with a message.
+claude:
+	@command -v jq >/dev/null 2>&1 || { echo "claude: jq not installed (make init) — skipping."; exit 0; }; \
+	settings="$(HOME)/.claude/settings.json"; mkdir -p "$(HOME)/.claude"; \
+	[ -f "$$settings" ] || echo '{}' > "$$settings"; \
+	if ! jq -e . "$$settings" >/dev/null 2>&1; then \
+		echo "claude: $$settings is not valid JSON — leaving it alone."; exit 0; \
+	fi; \
+	agentmgr=/dev/null; \
+	for d in "$${XDG_CONFIG_HOME:-$(HOME)/.config}/tmux/plugins/tmux-agent-mgr" "$(HOME)/.tmux/plugins/tmux-agent-mgr"; do \
+		[ -f "$$d/hooks/hooks.json" ] && { agentmgr="$$d/hooks/hooks.json"; break; }; \
+	done; \
+	[ "$$agentmgr" = /dev/null ] && echo "claude: tmux-agent-mgr not installed — wiring the banner only (re-run after make tpm)."; \
+	tmp="$$(mktemp)"; \
+	if jq --slurpfile agentmgr "$$agentmgr" -f "$(DOTFILES)/extra/claude/merge-hooks.jq" "$$settings" > "$$tmp"; then \
+		cmp -s "$$tmp" "$$settings" || { cp "$$settings" "$$settings.bak"; mv "$$tmp" "$$settings"; echo "claude: hooks merged into $$settings (previous copy: settings.json.bak)."; }; \
+	fi; \
+	rm -f "$$tmp"
 
 # Clone TPM if missing, then install the plugins listed in @tpm_plugins.
 # install_plugins reads @tpm_plugins + TMUX_PLUGIN_MANAGER_PATH from the running
