@@ -18,6 +18,9 @@ set -g default-terminal "tmux-256color"
 
 set -s extended-keys always
 set -as terminal-features 'xterm*:extkeys'
+# Pass OSC 8 hyperlinks through (Claude Code's links, the agent-mgr card). Takes
+# effect for a client when it attaches. Open with Cmd-click (see .wezterm.lua).
+set -as terminal-features ',*:hyperlinks'
 
 set -s escape-time 0
 set -s focus-events on
