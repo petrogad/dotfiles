@@ -2,7 +2,7 @@
 # agent-workspace-init — make ~/agents a clone of its private remote
 # ($AGENT_WORK_REMOTE, set by dotfiles-private) so agent-sync can sync it.
 #
-#   no ~/agents        → plain clone; syncing starts on the next timer tick.
+#   no ~/agents, or an empty one → plain clone; syncing starts on the next timer tick.
 #   ~/agents, no .git  → adopt it: the remote's .git moves in, files the remote
 #                        has and this machine lacks are checked out, and nothing
 #                        local is overwritten. Sync is PAUSED until you review:
@@ -31,6 +31,8 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 git clone -q "$remote" "$tmp/agents"
 
+# An empty ~/agents (the zsh config creates one) counts as missing.
+if [ -d "$dir" ] && [ -z "$(ls -A "$dir")" ]; then rmdir "$dir"; fi
 if [ ! -e "$dir" ]; then
   mv "$tmp/agents" "$dir"
   echo "agent-workspace: cloned $remote into $dir."
