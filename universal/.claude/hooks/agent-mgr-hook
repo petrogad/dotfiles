@@ -1,0 +1,16 @@
+#!/bin/sh
+# Claude Code hook → tmux-agent-mgr. `make claude` registers this for every event
+# the plugin's hooks/hooks.json lists, so the sidebar and tab glyphs get the
+# agent's own word (blocked on what, permission mode, subagents, tasks) rather
+# than passive process detection alone.
+#
+# A shim rather than the plugin path itself: the plugin is a TPM checkout that
+# may not exist yet on a fresh machine, or may live under either plugin dir.
+# With no plugin, swallow the payload and exit 0 — a failing hook prints into
+# the session it is meant to be watching.
+for d in "${XDG_CONFIG_HOME:-$HOME/.config}/tmux/plugins/tmux-agent-mgr" \
+         "$HOME/.tmux/plugins/tmux-agent-mgr"; do
+  [ -f "$d/hook.sh" ] && exec sh "$d/hook.sh" "$@"
+done
+cat >/dev/null
+exit 0
