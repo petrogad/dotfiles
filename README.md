@@ -106,6 +106,16 @@ If the app rewrites its config file on launch (and would clobber a symlink), put
 
 ## Machine-specific stuff that shouldn't be in the repo
 
+### Private companion repo
+
+Anything that identifies my own machines, accounts or projects lives in a private repo,
+`petrogad/dotfiles-private`, cloned beside this one at `~/github/dotfiles-private`. `make osx` /
+`make linux` pick it up when it is present and skip it when it isn't:
+
+- `make private` stows its `home/` package into `$HOME` (e.g. `~/.config/zsh/env.d/private.zsh`).
+- `make agents` appends its `agents/AGENTS.md` to the public one to build `~/.agents/AGENTS.md`,
+  and stows its `agents/skills/` beside the public skills.
+
 If a config is specific to one machine (work laptop vs. personal, different paths, secrets, etc.):
 
 - For zsh: put it in `~/.zshrc.local`. The main `.zshrc` sources it automatically if it exists.

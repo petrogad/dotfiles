@@ -35,6 +35,10 @@ Three top-level package directories, each with different semantics:
   - `extra/karabiner/karabiner.json` — **copied** (not symlinked) by `make osx`, because Karabiner-Elements rewrites its config on launch and would clobber a symlink
   - `extra/dev.sh.sample` — template only, not installed
 
+### Public repo — keep it generic
+
+This repo is **public**. Host names and addresses, credentials (even dev/staging ones), private repo or org names, vault paths, and employer- or client-specific config belong in the private companion `../dotfiles-private` (`$(PRIVATE)` in the Makefile), never here. Its `agents/AGENTS.md` is appended to `universal/.agents/AGENTS.md` by `make agents`; its `agents/skills/` are stowed beside the public skills; its `home/` is stowed into `$HOME` by `make private`. Scripts here read private values from env vars that `home/.config/zsh/env.d/private.zsh` sets (e.g. `LAB_DOMAIN`, `TODOIST_API_TOKEN_REF`).
+
 There is no `linux/` directory yet; `make linux` will fail at the stow step until one exists.
 
 ### Adding a new dotfile

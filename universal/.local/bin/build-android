@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build + install an Android debug app from the worktree you are standing in.
 # Dev builds target our own infra, never production: the default origin is
-# labs staging (https://<repo>.<lab-domain>), over HTTPS, with no tunnel.
+# labs staging (https://<repo>.$LAB_DOMAIN), over HTTPS, with no tunnel.
+# LAB_DOMAIN comes from the environment (dotfiles-private sets it).
 #
 # Examples of call:
 # build-android
@@ -56,7 +57,7 @@ root=$(git rev-parse --show-toplevel 2>/dev/null) || {
   echo "build-android: not inside a git worktree (cd into one first)" >&2; exit 1; }
 
 # Find the Gradle project by walking the tree rather than assuming a layout.
-# myapp keeps it at apps/android; a single-app repo has it at the root. Skip
+# A monorepo may keep it at apps/android; a single-app repo has it at the root. Skip
 # build output and dependency dirs, which contain their own stray wrappers.
 # NB: a read loop, not mapfile — macOS still ships bash 3.2, where mapfile
 # does not exist, and this script is in universal/.
@@ -75,7 +76,7 @@ case ${#wrappers[@]} in
 esac
 
 # The origin property is named after the PROJECT, not the worktree — a worktree
-# is called android-design while the property is myapp.debugApiOrigin. Prefer
+# may be called android-design while the property is myapp.debugApiOrigin. Prefer
 # the remote's repo name; fall back to the parent dir, which in the
 # clone-for-wt layout (<repo>/<worktree>) is also the repo name.
 if [ -z "$prop" ]; then
@@ -112,8 +113,10 @@ if [ "$uses_origin" = yes ] && [ "$stack" = no ]; then
       *.debugApiOrigin) lab_repo="${prop%.debugApiOrigin}" ;;
       *) echo "build-android: no default origin for property '$prop'; pass --origin or --stack" >&2; exit 1 ;;
     esac
-    origin="https://$lab_repo.<lab-domain>"
-    # *.<lab-domain> is a LAN wildcard, so a repo with no app resolves and only fails at TLS
+    [ -n "${LAB_DOMAIN:-}" ] || {
+      echo "build-android: LAB_DOMAIN unset, so no default origin; pass --origin or --stack" >&2; exit 1; }
+    origin="https://$lab_repo.$LAB_DOMAIN"
+    # *.$LAB_DOMAIN is a LAN wildcard, so a repo with no app resolves and only fails at TLS
     # at runtime. Probe before building.
     if ! curl -fsS -m 5 -o /dev/null "$origin/health" 2>/dev/null; then
       echo "build-android: no lab host for $lab_repo ($origin/health unreachable); use --stack or --origin" >&2

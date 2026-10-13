@@ -1,7 +1,9 @@
 DOTFILES := $(CURDIR)
+# The private half (petrogad/dotfiles-private), cloned beside this repo.
+PRIVATE ?= $(abspath $(DOTFILES)/../dotfiles-private)
 UNAME := $(shell uname -s)
 
-.PHONY: init osx linux universal-dots osx-dots agents agent-sync tpm homebrew apt-packages backup bootstrap karabiner
+.PHONY: init osx linux universal-dots osx-dots agents private agent-sync tpm homebrew apt-packages backup bootstrap karabiner
 
 # Bootstrap: ensure stow is installed before anything else
 bootstrap:
@@ -93,46 +95,70 @@ init:
 	@exit 1
 endif
 
-osx: universal-dots agents osx-dots karabiner tpm agent-sync
+osx: universal-dots private agents osx-dots karabiner tpm agent-sync
 
 osx-dots:
 	stow --restow --no-folding --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" osx
 
-linux: universal-dots agents tpm
+linux: universal-dots private agents tpm
 
 universal-dots:
 	stow --restow --no-folding --ignore ".DS_Store" --target="$(HOME)" --dir="$(DOTFILES)" universal
 
 # .agents is not plain-stowed (see universal/.stow-local-ignore). Skills must be
 # DIRECTORY symlinks — Codex ignores a real dir that merely contains a symlinked
-# SKILL.md — so the `skills` package is stowed WITH folding into both
-# ~/.agents/skills and ~/.claude/skills. AGENTS.md links into ~/.agents only.
-# ~/.claude/skills stays a real dir (owned by universal-dots), so folding just
-# our entries leaves any other skills alone.
+# SKILL.md — so each `skills` package is stowed WITH folding into both
+# ~/.agents/skills and ~/.claude/skills. ~/.claude/skills stays a real dir
+# (owned by universal-dots), so folding just our entries leaves any other skills
+# alone. The private repo's skills (if it is cloned) are stowed the same way.
 #
-# ~/.claude/CLAUDE.md is symlinked at AGENTS.md rather than being a stub that
-# imports it: Claude Code reads that path as user-level memory whatever it
+# ~/.agents/AGENTS.md is BUILT, not linked: the public AGENTS.md, then the
+# private overlay appended when $(PRIVATE) exists — so machine names, addresses
+# and accounts never land in this public repo. Edit the sources and re-run.
+#
+# ~/.claude/CLAUDE.md is symlinked at the built file rather than being a stub
+# that imports it: Claude Code reads that path as user-level memory whatever it
 # contains, so a symlink needs no import syntax to be right. A real file there is
 # somebody's own memory and is left alone with a message.
 agents:
-	@agents_src="$(DOTFILES)/universal/.agents"; \
+	@agents_src="$(DOTFILES)/universal/.agents"; priv_src="$(PRIVATE)/agents"; \
 	for target in "$(HOME)/.agents/skills" "$(HOME)/.claude/skills"; do \
 		mkdir -p "$$target"; \
-		for skill in "$$agents_src/skills"/*/; do \
+		find "$$target" -maxdepth 1 -type l ! -exec test -e {} \; -exec rm {} \; ; \
+		for skill in "$$agents_src/skills"/*/ "$$priv_src/skills"/*/; do \
+			[ -d "$$skill" ] || continue; \
 			s="$$(basename "$$skill")"; \
 			if [ -d "$$target/$$s" ] && [ ! -L "$$target/$$s" ]; then rm -rf "$$target/$$s"; fi; \
 		done; \
+		stow --restow --ignore ".DS_Store" --target="$$target" --dir="$$agents_src" skills; \
+		if [ -d "$$priv_src/skills" ]; then \
+			stow --restow --ignore ".DS_Store" --target="$$target" --dir="$$priv_src" skills; \
+		fi; \
 	done; \
-	stow --restow --no-folding --ignore ".DS_Store" --ignore "skills" \
-		--target="$(HOME)/.agents" --dir="$(DOTFILES)/universal" .agents; \
-	stow --restow --ignore ".DS_Store" --target="$(HOME)/.agents/skills" --dir="$$agents_src" skills; \
-	stow --restow --ignore ".DS_Store" --target="$(HOME)/.claude/skills" --dir="$$agents_src" skills; \
+	built="$(HOME)/.agents/AGENTS.md"; \
+	rm -f "$$built"; \
+	{ printf '<!-- Built by `make agents` from %s' "$$agents_src/AGENTS.md"; \
+	  if [ -f "$$priv_src/AGENTS.md" ]; then printf ' + %s' "$$priv_src/AGENTS.md"; fi; \
+	  printf '. Do not edit here. -->\n\n'; \
+	  cat "$$agents_src/AGENTS.md"; \
+	  if [ -f "$$priv_src/AGENTS.md" ]; then printf '\n'; cat "$$priv_src/AGENTS.md"; fi; \
+	} > "$$built"; \
+	if [ ! -f "$$priv_src/AGENTS.md" ]; then echo "agents: no $$priv_src/AGENTS.md — built the public part only."; fi; \
 	claude_md="$(HOME)/.claude/CLAUDE.md"; \
 	if [ -e "$$claude_md" ] && [ ! -L "$$claude_md" ]; then \
 		echo "agents: $$claude_md exists and is not a symlink — leaving it alone."; \
 		echo "        Move it aside and re-run to have AGENTS.md reach Claude Code."; \
 	else \
-		ln -sfn "$$agents_src/AGENTS.md" "$$claude_md"; \
+		ln -sfn "$$built" "$$claude_md"; \
+	fi
+
+# Stow the private repo's home/ package into $HOME, if it is cloned. A no-op
+# otherwise, so a fresh machine without access still gets a working setup.
+private:
+	@if [ -d "$(PRIVATE)/home" ]; then \
+		stow --restow --no-folding --ignore ".DS_Store" --target="$(HOME)" --dir="$(PRIVATE)" home; \
+	else \
+		echo "private: $(PRIVATE) not cloned — skipping."; \
 	fi
 
 karabiner:

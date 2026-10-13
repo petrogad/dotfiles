@@ -3,7 +3,7 @@
 README.*
 LICENSE
 # .agents is not plain-stowed; the `agents` target fans its skills into
-# ~/.agents/skills and ~/.claude/skills, and links AGENTS.md into ~/.agents.
+# ~/.agents/skills and ~/.claude/skills, and builds ~/.agents/AGENTS.md.
 \.agents
 # znap-managed plugin clones (znap itself, ohmyzsh, zsh-users, lukechilds, ...)
 # are never stowed: with --no-folding stow would symlink their internals
