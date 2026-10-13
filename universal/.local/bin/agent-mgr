@@ -7,8 +7,7 @@
 # therefore either dangle or need creating by hand afterwards, so this resolves
 # at call time instead and is correct the moment the binary appears.
 #
-# Mostly used for the notes scratchpad — `agent-mgr note add|list|show|edit`, see
-# ~/.agents/AGENTS.md — and for poking at the daemon.
+# Mostly used for poking at the daemon (`agent-mgr daemon --once`).
 set -euo pipefail
 
 # tmux publishes the resolved path as @agent_mgr_bin, which is authoritative:
