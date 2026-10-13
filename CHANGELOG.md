@@ -6,6 +6,7 @@ Format: `YYYY-MM-DD — short description`. Group related changes under one date
 
 ## 2026-10-13
 
+- WezTerm: a bare URL followed by `)` no longer swallows it (`(https://…/pull/6).` used to open `…/6)`). The default bare-URL `hyperlink_rules` entry is swapped for Gruber's pattern, where a `)` is part of a URL only when the URL opened one (`Foo_(bar)`), and trailing punctuation never is. Other default rules (bracketed URLs, emails) are kept.
 - Hyperlinks inside tmux are clickable: tmux now passes OSC 8 through (`terminal-features ',*:hyperlinks'` in `tmux.conf.user`, applied per client on attach), and WezTerm opens them on **Cmd-click** even while tmux has the mouse (`mouse_bindings` with `mouse_reporting = true`, the Down swallowed so tmux doesn't also take the click). Covers Claude Code's links as well as the tmux-agent-mgr card.
 
 ## 2026-10-12

@@ -70,4 +70,21 @@ config.mouse_bindings = {
   },
 }
 
+-- Bare URLs in plain text (not OSC 8 links) are found by hyperlink_rules. The
+-- default bare-URL rule may end on ")", so "(https://…/pull/6)." opened
+-- ".../6)". Replace it with Gruber's pattern: a ")" belongs to the URL only when
+-- the URL opened one itself (Wikipedia's Foo_(bar)), and trailing sentence
+-- punctuation is never part of it. The other defaults (mailto, bracketed) stay.
+local hyperlink_rules = {}
+for _, rule in ipairs(wezterm.default_hyperlink_rules()) do
+  if not rule.regex:find("\\S+[)/a-zA-Z0-9-]+", 1, true) then
+    table.insert(hyperlink_rules, rule)
+  end
+end
+table.insert(hyperlink_rules, {
+  regex = [[\b\w+://(?:[^\s()<>]|\([^\s()<>]*\))+(?:\([^\s()<>]*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’])]],
+  format = "$0",
+})
+config.hyperlink_rules = hyperlink_rules
+
 return config
