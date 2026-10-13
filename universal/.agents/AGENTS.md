@@ -10,6 +10,25 @@ this over time.
 
 If I ask you to read a reference or file, URL, issue, ticket, or ANY document and you are not able to retrieve it, TELL ME so we can fix the issue. Do not just ignore or work without the reference material.
 
+## Links I can open
+
+I am often on a different computer from the one you are running on. Any URL you give me for
+something running on your machine (a dev server, a stack, Mailpit, a preview) uses the machine's
+LAN address, never `localhost` or `127.0.0.1`: e.g. `http://192.168.1.21:4562`, not
+`http://localhost:4562`. Look the address up (`ipconfig getifaddr en0` on a Mac,
+`hostname -I` on Linux) and check the URL answers from that address before handing it over. If
+the service is bound to loopback only, say so instead of giving me a link that cannot work.
+
+## Tests while iterating
+
+While we are iterating on something together (I look, I ask for a change, you change it, I look
+again), do **not** run the full test suite, lint or typecheck across the repo after each round.
+Make the change, rebuild or restart whatever I am looking at, and hand it back fast. A typecheck
+of what you touched is fine when it is quick.
+
+Run the full suite once, when I say we are ready to commit or push, and fix whatever it finds then.
+Say in your reply which tests you skipped, so I know they are still to run.
+
 ## Work-management docs
 
 Research, plans, handoffs, and reviews are work management, not code. They live under
