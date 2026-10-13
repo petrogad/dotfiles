@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Issue PR"
+  short_description: "Review an issue-linked PR and its worktree"
+  default_prompt: "Use $review-issue-pr to review the pull request implementing issue 123 and draft feedback for its implementor."
