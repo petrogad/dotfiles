@@ -66,10 +66,9 @@ whether Pete is there to ask:
 - **Running unattended** → don't block the run. Guess from the repo's path: a repo under a
   client/org directory (e.g. `~/GitHub/acme/…`) goes under a top-level project matching that
   name if one exists; otherwise use `Personal Projects`. Then flag the guess per the
-  decision-points rule in `AGENTS.md` — a scratchpad note
-  (`agent-mgr note add "<repo>: created Todoist project under <parent>"`) plus a line in your
-  summary. Moving a project is drag-and-drop in the app, so a wrong guess costs Pete seconds —
-  the note, not the placement, is the important part.
+  decision-points rule in `AGENTS.md` — a line in your summary naming the parent you chose.
+  Moving a project is drag-and-drop in the app, so a wrong guess costs Pete seconds — the
+  flag, not the placement, is the important part.
 
 ```bash
 proj_id=$(curl -sf -X POST "$api/projects" -H "$auth" -H 'Content-Type: application/json' \
