@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Link the hooks in ~/.config/worktree/git-hooks into each .bare repo's hooks, so they run in
+# every worktree of the repo:
+#   post-merge  a pull on the primary worktree re-indexes it for codebase-memory
+#   pre-commit  gitleaks blocks a commit whose staged changes contain a secret
+#
+#   install-git-hooks [<repo-root> ...]
+#
+# With no arguments: every .bare under ~/dev and ~/github (three levels deep, which covers
+# a dev box's ~/dev/<org>/<repo>). Safe to re-run. Skips, with a warning, a repo that sets
+# core.hooksPath (husky, .githooks: git never reads .bare/hooks there), and any hook a repo
+# already has its own version of; cbm-index-check still warns when those indexes go stale.
+set -euo pipefail
+
+src_dir="$HOME/.config/worktree/git-hooks"
+hooks=()
+for src in "$src_dir"/*; do [ -x "$src" ] && hooks+=("$(basename "$src")"); done
+[ ${#hooks[@]} -gt 0 ] || { echo "no hooks in $src_dir (run make universal-dots)" >&2; exit 1; }
+
+if [ $# -gt 0 ]; then
+  roots=("$@")
+else
+  roots=()
+  while IFS= read -r bare; do roots+=("$(dirname "$bare")"); done < <(
+    find "$HOME/dev" "$HOME/github" -maxdepth 3 -name .bare -type d 2>/dev/null | sort
+  )
+fi
+
+for root in "${roots[@]}"; do
+  bare="$root/.bare"
+  [ -d "$bare" ] || { echo "skip $root: no .bare"; continue; }
+  hooks_path=$(git --git-dir="$bare" config core.hooksPath || true)
+  if [ -n "$hooks_path" ]; then
+    echo "skip $root: core.hooksPath is $hooks_path, so .bare/hooks never runs"
+    continue
+  fi
+  for hook in "${hooks[@]}"; do
+    src="$src_dir/$hook"
+    dst="$bare/hooks/$hook"
+    if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
+      echo "ok   $root $hook"
+    elif [ -e "$dst" ] || [ -L "$dst" ]; then
+      echo "skip $root $hook: it already has its own $hook hook"
+    else
+      mkdir -p "$bare/hooks"
+      ln -s "$src" "$dst"
+      echo "add  $root $hook"
+    fi
+  done
+done

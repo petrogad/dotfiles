@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Re-index a worktree for codebase-memory-mcp, detached, one run per directory at a time.
+#
+#   cbm-reindex [--if-missing] [--wait] <dir>
+#
+#   --if-missing  only when no index exists for <dir> yet
+#   --wait        run in the foreground instead of detaching
+#
+# Callers: the _worktree post-create hook 50-primary-ff, the post-merge hook that install-git-hooks
+# links into <repo>/.bare/hooks, and clone-for-wt. Log: ~/.cache/codebase-memory-mcp/logs/reindex.log
+# Overrides (for tests): CBM_BIN, CBM_CACHE_DIR.
+set -euo pipefail
+
+# Git exports GIT_DIR and friends to hooks; the indexer runs git itself and must not inherit them.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR GIT_OBJECT_DIRECTORY \
+  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH GIT_REFLOG_ACTION
+
+if_missing=0 wait=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --if-missing) if_missing=1 ;;
+    --wait) wait=1 ;;
+    -h | --help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) break ;;
+  esac
+  shift
+done
+[ $# -eq 1 ] || { echo "usage: cbm-reindex [--if-missing] [--wait] <dir>" >&2; exit 2; }
+
+dir=$(cd "$1" && pwd -P) || exit 1
+cache="${CBM_CACHE_DIR:-$HOME/.cache/codebase-memory-mcp}"
+bin="${CBM_BIN:-$(command -v codebase-memory-mcp || echo "$HOME/.local/bin/codebase-memory-mcp")}"
+[ -x "$bin" ] || exit 0 # not installed on this machine: nothing to do
+log="$cache/logs/reindex.log"
+mkdir -p "$cache/logs" "$cache/locks"
+
+has_index() {
+  python3 - "$cache" "$dir" <<'PY'
+import glob, os, sqlite3, sys
+cache, want = sys.argv[1], sys.argv[2]
+for db in glob.glob(os.path.join(cache, '*.db')):
+    if os.path.basename(db).startswith('_'):
+        continue
+    try:
+        con = sqlite3.connect(f'file:{db}?mode=ro', uri=True, timeout=0.5)
+        rows = con.execute("select root_path from projects where root_path != ''").fetchall()
+        con.close()
+    except sqlite3.Error:
+        continue
+    if any(os.path.realpath(r) == want for (r,) in rows):
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
+if [ "$if_missing" = 1 ] && has_index; then
+  exit 0
+fi
+
+if [ "$wait" = 0 ]; then
+  nohup "$0" --wait "$dir" </dev/null >>"$log" 2>&1 &
+  echo "codebase-memory: re-indexing $dir in the background (log: $log)"
+  exit 0
+fi
+
+# mkdir is atomic on macOS and Linux alike (macOS has no flock). A lock older than an hour is
+# left over from a killed run.
+lock="$cache/locks/$(printf '%s' "$dir" | tr '/' '-')"
+if ! mkdir "$lock" 2>/dev/null; then
+  if [ -n "$(find "$lock" -maxdepth 0 -mmin +60 2>/dev/null)" ]; then
+    rmdir "$lock" 2>/dev/null || true
+    mkdir "$lock" 2>/dev/null || exit 0
+  else
+    echo "$(date '+%F %T') skip $dir: a re-index is already running"
+    exit 0
+  fi
+fi
+trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+
+echo "$(date '+%F %T') start $dir"
+start=$SECONDS
+if "$bin" cli --quiet index_repository --repo-path "$dir" >/dev/null; then
+  echo "$(date '+%F %T') done $dir in $((SECONDS - start))s"
+else
+  echo "$(date '+%F %T') FAILED $dir (exit $?)"
+  exit 1
+fi

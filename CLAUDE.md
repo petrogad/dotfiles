@@ -1,0 +1,88 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this repo is
+
+Personal dotfiles managed with [GNU Stow](https://www.gnu.org/software/stow/) and a `Makefile`. There is no build or lint step — changes are validated by re-running `make osx` / `make linux` and opening a fresh shell. Scripts with non-trivial logic get a self-check under `tests/` (`bash tests/<name>.sh`).
+
+## Changelog discipline
+
+**Every meaningful change to this repo must be recorded in `CHANGELOG.md`** before committing. (The agent-written changelog hook is opt-in: `DOTFILES_CHANGELOG_HOOK=1`.) Add a bullet under today's date (create a new `## YYYY-MM-DD` section if one doesn't exist). Skip the changelog only for trivial edits (typos, whitespace).
+
+## Commands
+
+```bash
+make backup    # snapshot existing real files in $HOME to ~/dotfiles-backup/<timestamp>/ (skips symlinks)
+make init      # install packages: brew bundle (macOS) or apt-get (Linux). Bootstraps stow if missing.
+make osx       # stow universal/ + osx/, copy karabiner.json, run hammerspoon-pre-dots
+make linux     # stow universal/ + linux/
+make agent-workspace  # clone or adopt ~/agents onto its private remote (both osx and linux run it)
+make update    # pull this repo and the private one, re-run osx/linux, show both statuses
+```
+
+`make osx` / `make linux` use `stow --restow`, so they're idempotent — re-running just refreshes symlinks. The standard inner-loop after editing a config in this repo is: re-run `make osx` (only needed when adding a new file; existing symlinks already point into the repo).
+
+## Architecture
+
+Stow mirrors `universal/` and `osx/` into `$HOME` as symlinks, preserving the directory structure. So `universal/.config/zsh/aliases` → `~/.config/zsh/aliases`. **Editing a symlinked dotfile in `~` edits the file inside this repo** — that's the intended workflow, not a bug.
+
+Three top-level package directories, each with different semantics:
+
+- **`universal/`** — stowed on every OS. Cross-platform configs (zsh, tmux, git, ripgrep, wezterm, starship, lazygit).
+- **`osx/`** — stowed only by `make osx`. macOS-only configs (aerospace, hammerspoon, linearmouse).
+- **`extra/`** — **never stowed.** Used by Makefile targets:
+  - `extra/homebrew/Brewfile` — consumed by `make init` on macOS
+  - `extra/apt/packages.txt` — consumed by `make init` on Linux
+  - `extra/karabiner/karabiner.json` — **copied** (not symlinked) by `make osx`, because Karabiner-Elements rewrites its config on launch and would clobber a symlink
+  - `extra/dev.sh.sample` — template only, not installed
+
+### Public repo — keep it generic
+
+This repo is **public**. Host names and addresses, credentials (even dev/staging ones), private repo or org names, vault paths, and employer- or client-specific config belong in the private companion `../dotfiles-private` (`$(PRIVATE)` in the Makefile), never here. Its `agents/AGENTS.md` is appended to `universal/.agents/AGENTS.md` by `make agents`; its `agents/skills/` are stowed beside the public skills; its `home/` is stowed into `$HOME` by `make private`. Scripts here read private values from env vars that `home/.config/zsh/env.d/private.zsh` sets (e.g. `LAB_DOMAIN`, `TODOIST_API_TOKEN_REF`).
+
+**Machine names are ssh aliases.** Public files name a role, never a host: `sol` is "the Mac I work on" (WezTerm's Cmd+Shift+H tab, `clip-push`, Hammerspoon's Hyper+P). Each machine's own `~/.ssh/config` maps the alias to the real host, e.g. add `sol` to the `Host` line of the entry that already reaches that Mac (`Host my-mac sol`). The mapping differs per machine (LAN address on one, a tunnel on another), so it lives there, not in either repo.
+
+**The publish guard.** `extra/guard/public-guard` runs from `.githooks/pre-commit` (staged lines) and `.githooks/pre-push` (lines and messages of every commit being pushed); `make osx` / `make linux` set `core.hooksPath`. Generic patterns are in `extra/guard/patterns.txt`; the specific names live in the private repo's `guard/denylist.txt` and, for CI, the `PUBLIC_GUARD_DENYLIST` secret. It prints file and line, never the matched text. Self-check: `bash tests/public-guard.sh`.
+
+**`~/.zshrc` is machine-owned.** The shared config is `universal/.config/zsh/zshrc`; `make` creates a `~/.zshrc` that sources it, only when missing. Never put a line an installer added back into the repo.
+
+**Git identity.** The public `.gitconfig` carries the GitHub noreply address; the real one is in the private repo's `home/.gitconfig.local`, which the `[include]` at the end picks up. This checkout itself commits as the noreply address (`make` sets it in the repo config).
+
+**Commits and PRs here carry no Claude attribution**: no `Claude-Session:` trailers, session links or "Generated with Claude Code" lines. A `Co-Authored-By:` trailer is fine.
+
+There is no `linux/` directory yet; `make linux` will fail at the stow step until one exists.
+
+### Adding a new dotfile
+
+1. Place it in `universal/` (or `osx/`) at the path it should occupy under `$HOME`.
+2. Add it to `BACKUP_TARGETS` in the `Makefile` so `make backup` preserves any pre-existing version on a fresh machine.
+3. Run `make osx` / `make linux` — stow creates the symlink.
+
+If the app rewrites its own config file on launch (Karabiner-style), don't stow it. Put it in `extra/<app>/` and add a `cp` step to the Makefile, modeled on the `karabiner` target.
+
+### `.stow-local-ignore`
+
+Each package has one. Excludes `.DS_Store`, `*.local` files, `README.*`, and `LICENSE` from being symlinked. Notably this means **`.zshrc.local` is intentionally not stowed** — it's sourced by `.zshrc` if present and is the escape hatch for machine-specific config (work laptop paths, secrets) that shouldn't be in the repo.
+
+### Karabiner write-back gotcha
+
+Because Karabiner is copied (not symlinked), GUI changes write to `~/.config/karabiner/karabiner.json` and **do not** propagate to the repo. To save GUI changes:
+
+```bash
+cp ~/.config/karabiner/karabiner.json extra/karabiner/karabiner.json
+```
+
+### Agent workspace (`~/agents`)
+
+The research / plans / handoffs docs from the `agent-docs` skill live in `~/agents`, a clone of a private repo whose URL is `AGENT_WORK_REMOTE` (set by dotfiles-private). `universal/.local/bin/agent-sync` commits, pulls with rebase and pushes every 15 min, driven by a LaunchAgent on macOS (`extra/launchd/`) and a systemd user timer on Linux (`extra/systemd/`); `make agent-sync` installs whichever applies. `make agent-workspace` runs `agent-workspace-init`: it clones into a missing `~/agents`, or adopts an existing one without overwriting anything and leaves `.git/agent-sync-paused` until someone reviews `git status` and removes it. The repo's own `.gitignore` decides what syncs, and agent-sync never adds a new file over `AGENT_SYNC_MAX_MB` (default 10): it is listed in `.git/info/exclude` and stays on that machine. Log: `~/.local/state/agent-sync.log`.
+
+### `dev` command
+
+Defined in `universal/.config/zsh/tmux`. Running `dev` (or `dev /path/to/project`) sources a `.dev.sh` from the project directory, which calls `_dev_add_project` to lay out a tmux window. Per-project layouts live in each project's repo, **not here**. `extra/dev.sh.sample` is the template.
+
+## Shell setup
+
+- Plugin manager: **znap** (zsh-snap), not oh-my-zsh
+- Prompt: **Starship**, not Powerlevel10k
+- Modular configs: `~/.config/zsh/zshrc` sources `~/.config/zsh/{aliases,git,tmux}`

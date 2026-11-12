@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Fast-forward the primary worktree (<repo>/master or main) to the origin _worktree just fetched,
+# and re-index it for codebase-memory. Nothing else updates that checkout (_worktree branches from
+# origin/<primary> without touching it), so without this its graph index goes stale.
+#
+# Skips, with a note, when the primary has tracked changes, is on another branch, or has diverged.
+# Untracked files such as .env do not block the fast-forward.
+set -euo pipefail
+
+primary="$REPO_ROOT/$PRIMARY_BRANCH"
+[ -d "$primary" ] || exit 0
+
+if [ "$(git -C "$primary" symbolic-ref --quiet --short HEAD || true)" != "$PRIMARY_BRANCH" ]; then
+  echo "$PRIMARY_BRANCH worktree is not on $PRIMARY_BRANCH: not fast-forwarded"
+  exit 0
+fi
+if ! git -C "$primary" diff --quiet || ! git -C "$primary" diff --cached --quiet; then
+  echo "$PRIMARY_BRANCH has uncommitted changes: not fast-forwarded, graph index not refreshed"
+  exit 0
+fi
+
+before=$(git -C "$primary" rev-parse HEAD)
+if ! git -C "$primary" merge --ff-only --quiet "origin/$PRIMARY_BRANCH" >/dev/null 2>&1; then
+  echo "$PRIMARY_BRANCH has diverged from origin/$PRIMARY_BRANCH: not fast-forwarded"
+  exit 0
+fi
+after=$(git -C "$primary" rev-parse HEAD)
+
+reindex=$(command -v cbm-reindex || echo "$HOME/.local/bin/cbm-reindex")
+[ -x "$reindex" ] || exit 0
+if [ "$before" != "$after" ]; then
+  echo "Fast-forwarded $PRIMARY_BRANCH to $(git -C "$primary" rev-parse --short HEAD)"
+  "$reindex" "$primary" # the post-merge hook may have started one already; the lock dedups
+else
+  "$reindex" --if-missing "$primary"
+fi

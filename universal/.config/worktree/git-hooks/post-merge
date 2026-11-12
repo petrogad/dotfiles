@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Linked into <repo>/.bare/hooks by install-git-hooks, so it runs in every worktree of the repo.
+# After a pull (merge or rebase) moves the primary worktree (<repo>/master or main), re-index it for
+# codebase-memory in the background. In any other worktree it does nothing. Never fails the pull.
+
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null) || exit 0
+
+# Same rule as _worktree: master wins when both exist on origin.
+primary=
+for b in master main; do
+  if git rev-parse --verify --quiet "refs/remotes/origin/$b" >/dev/null; then
+    primary=$b
+    break
+  fi
+done
+[ -n "$primary" ] && [ "$branch" = "$primary" ] && [ "$(basename "$top")" = "$primary" ] || exit 0
+
+reindex=$(command -v cbm-reindex || echo "$HOME/.local/bin/cbm-reindex")
+[ -x "$reindex" ] && "$reindex" "$top" || true
+exit 0

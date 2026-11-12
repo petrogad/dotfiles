@@ -1,0 +1,22 @@
+#!/bin/sh
+# Measure a Claude Code session in any repo: watch it live, or audit it afterwards.
+#
+#   session-measure watch [SESSION|latest] [--dir DIR]   live events (skills, agents, stack, context, PRs)
+#   session-measure audit [SESSION|latest] [--dir DIR]   tokens, billed weight, skills, repo docs read
+#
+# SESSION is a session id or a transcript path. `latest` (the default) is the session most recently
+# started from DIR (default: the current directory), i.e. the directory you ran `claude` in.
+# Audit output is markdown; paste it into the plan or handoff the work belongs to.
+# Scripts: ~/.local/lib/session-measure/ (session-audit-triggers.json lists the skill triggers; grow it).
+set -eu
+here="$HOME/.local/lib/session-measure"
+case "${1:-}" in watch|audit) mode=$1; shift ;; *) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;; esac
+session=latest
+case "${1:-}" in ''|--*) ;; *) session=$1; shift ;; esac
+dir=$PWD
+if [ "${1:-}" = --dir ]; then dir=$(cd "$2" && pwd); shift 2; fi
+pdir="$HOME/.claude/projects/$(printf %s "$dir" | sed 's/[^A-Za-z0-9]/-/g')"
+if [ "$mode" = watch ]; then
+  exec python3 "$here/session-watch.py" "$session" --project-dir "$pdir" --interval 20 "$@"
+fi
+exec python3 "$here/session-audit.py" "$session" --project-dir "$pdir" "$@"

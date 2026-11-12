@@ -1,0 +1,23 @@
+#!/bin/zsh
+# .dev.sh — Drop this file in any project root to define its dev environment.
+# Run `dev` from the project directory (or `dev /path/to/project`) to launch.
+#
+# This file is sourced by the `dev` command from your dotfiles.
+# It should call `_dev_add_project` with your project's layout.
+#
+# _dev_add_project <name> <root> <layout> <cmd1> [cmd2] ...
+#
+# Arguments:
+#   name    — tmux window name
+#   root    — project root directory
+#   layout  — tmux layout (tiled, even-horizontal, even-vertical, main-horizontal, main-vertical)
+#   cmd*    — one command per pane
+#
+# Example: a full-stack app with database, backend, and frontend
+
+_dev_add_project "myproject" \
+  "$(pwd)" \
+  "tiled" \
+  'echo "Database" && docker compose up db' \
+  'echo "Backend" && npm run dev:server' \
+  'echo "Frontend" && npm run dev:client'

@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+#
+# Pre-commit for this public repo (activated by `make osx` / `make linux`,
+# which set core.hooksPath to .githooks):
+#   1. public-guard on the staged lines: no host names, addresses, home paths
+#      or session links (extra/guard/public-guard).
+#   2. gitleaks, through the shared hook in ~/.config/worktree/git-hooks, when
+#      it is installed.
+#   3. Opt-in: DOTFILES_CHANGELOG_HOOK=1 runs an agent (default: claude) to
+#      update CHANGELOG.md from the staged diff and re-stages it.
+#      CHANGELOG_AGENT_CMD overrides the command ($CMD -p "<prompt>").
+#
+# Bypass everything once with `git commit --no-verify`.
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+extra/guard/public-guard --staged
+
+shared="$HOME/.config/worktree/git-hooks/pre-commit"
+if [[ -x "$shared" ]]; then "$shared"; fi
+
+[[ "${DOTFILES_CHANGELOG_HOOK:-}" == "1" ]] || exit 0
+
+staged="$(git diff --cached --name-only)"
+non_doc_staged="$(printf '%s\n' "$staged" | grep -vE '^(CHANGELOG\.md|README\.md)$' || true)"
+[[ -n "$non_doc_staged" ]] || exit 0
+
+if [[ -n "${CHANGELOG_AGENT_CMD:-}" ]]; then
+  AGENT_CMD="$CHANGELOG_AGENT_CMD"
+elif command -v claude >/dev/null 2>&1; then
+  AGENT_CMD="claude"
+else
+  echo "pre-commit: DOTFILES_CHANGELOG_HOOK=1 but 'claude' is not on PATH." >&2
+  exit 1
+fi
+
+echo "pre-commit: running '$AGENT_CMD' to review staged changes and update CHANGELOG/README..."
+
+prompt='Review the staged changes in this commit (use `git diff --cached` and `git diff --cached --stat` to inspect them) and update CHANGELOG.md with a new entry describing what changed. Follow the existing CHANGELOG style: newest first, grouped under a `## YYYY-MM-DD` heading for today. If today already has a heading, append to it. Only modify CHANGELOG.md and README.md — do not touch any other files, do not run git commands that mutate state, and do not create a commit.'
+
+# shellcheck disable=SC2086
+$AGENT_CMD -p "$prompt"
+
+for f in CHANGELOG.md README.md; do
+  if [[ -f "$f" ]] && ! git diff --quiet -- "$f"; then
+    git add "$f"
+    echo "pre-commit: staged updated $f"
+  fi
+done
+
+# The agent's edit goes through the guard too.
+extra/guard/public-guard --staged

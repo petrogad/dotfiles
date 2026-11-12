@@ -1,0 +1,177 @@
+# -- Prefix override (make Ctrl+Space primary) -------------------------
+
+unbind C-b
+unbind C-a
+
+set -g prefix C-Space
+set -g prefix2 None
+
+bind C-Space send-prefix
+
+# -- rest of your config below -----------------------------------------
+
+
+# -- Terminal / key handling ---------------------------------------------------
+
+set-option -sa terminal-overrides ",xterm*:Tc"
+set -g default-terminal "tmux-256color"
+
+set -s extended-keys always
+set -as terminal-features 'xterm*:extkeys'
+# Pass OSC 8 hyperlinks through (Claude Code's links, the agent-mgr card). Takes
+# effect for a client when it attaches. Open with Cmd-click (see .wezterm.lua).
+set -as terminal-features ',*:hyperlinks'
+
+set -s escape-time 0
+set -s focus-events on
+set -sg repeat-time 500
+
+# -- Behavior -----------------------------------------------------------------
+
+set -g mouse on
+set -g history-limit 100000
+
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+
+setw -g automatic-rename off
+set -g allow-rename off
+setw -g aggressive-resize off
+
+setw -g mode-keys vi
+
+set -g detach-on-destroy off
+
+# -- Activity / bell monitoring (used by Claude Code Stop/Notification hooks) -
+setw -g monitor-activity off
+set -g visual-activity off
+
+# Bell-based notifications: Claude hook writes BEL to panes when a run stops
+# or needs input. Flag flips the window-status entry red until focused.
+setw -g monitor-bell on
+set -g bell-action other
+set -g visual-bell off
+setw -g window-status-bell-style 'fg=red,reverse,bold'
+
+# -- Pane / window creation ----------------------------------------------------
+
+bind s split-window -v -c '#{pane_current_path}'
+bind v split-window -h -c '#{pane_current_path}'
+bind N command-prompt -I "#W" "rename-window '%%'"
+
+bind | split-window -h -c '#{pane_current_path}'
+bind - split-window -v -c '#{pane_current_path}'
+
+bind t new-window -c '#{pane_current_path}'
+
+bind w confirm-before -p "kill-window #W? (y/n)" kill-window
+bind d confirm-before -p "kill-pane #P? (y/n)" kill-pane
+bind x detach-client
+
+# -- Navigation ----------------------------------------------------------------
+# Prefix-based only to avoid AeroSpace collisions
+
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+
+bind -r H resize-pane -L 5
+bind -r J resize-pane -D 5
+bind -r K resize-pane -U 5
+bind -r L resize-pane -R 5
+
+bind C-h previous-window
+bind C-l next-window
+bind Tab last-window
+
+bind 1 select-window -t 1
+bind 2 select-window -t 2
+bind 3 select-window -t 3
+bind 4 select-window -t 4
+bind 5 select-window -t 5
+bind 6 select-window -t 6
+bind 7 select-window -t 7
+bind 8 select-window -t 8
+bind 9 select-window -t 9
+
+# -- Layout management ---------------------------------------------------------
+
+bind = select-layout even-horizontal
+bind + select-layout even-vertical
+bind Space next-layout
+bind z resize-pane -Z
+
+# -- Copy mode / clipboard -----------------------------------------------------
+
+set -g set-clipboard on
+
+bind -T copy-mode-vi v send-keys -X begin-selection
+bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel "pbcopy"
+bind -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "pbcopy"
+
+# -- Session management --------------------------------------------------------
+
+bind S command-prompt -p "New Session:" "new-session -A -s '%%'"
+bind f command-prompt -p "Switch Session:" "switch-client -t '%%'"
+bind X confirm-before -p "kill-session #S? (y/n)" kill-session
+
+bind R source-file ~/.tmux.conf \; display-message "tmux reloaded"
+bind E new-window -n tmux-config "$EDITOR ~/.config/tmux/tmux.conf.user"
+
+# Fuzzy session switcher in a popup.
+bind C-f display-popup -E -w 60% -h 50% "~/.local/bin/tmux-session-popup"
+
+# -- Plugins (TPM) -------------------------------------------------------------
+# gpakosz's ~/.tmux.conf sources this file through an `if-shell`, so `set -g
+# @plugin` entries here are invisible to TPM. Use the space-separated
+# @tpm_plugins list instead, and set TMUX_PLUGIN_MANAGER_PATH explicitly (TPM
+# only defaults it when loaded from ~/.tmux.conf). Use $HOME, not ~ (TPM expands
+# $HOME).
+set-environment -g TMUX_PLUGIN_MANAGER_PATH "$HOME/.config/tmux/plugins/"
+# continuum must load LAST, so it's the final entry in the list.
+set -g @tpm_plugins 'tmux-plugins/tpm petrogad/tmux-agent-mgr tmux-plugins/tmux-resurrect tmux-plugins/tmux-continuum'
+
+# Persist sessions across reboots.
+# resurrect saves windows/panes/layouts/cwd (+ scrollback) to
+# ~/.local/share/tmux/resurrect/; continuum auto-saves every 10 min and
+# auto-restores when the tmux server starts — so in the morning just run `tmux`.
+# Save/restore manually with `prefix C-s` / `prefix C-r`.
+set -g @resurrect-capture-pane-contents 'on'
+set -g @continuum-save-interval '10'
+set -g @continuum-restore 'on'
+
+# NOTE: `run '.../tpm'` is intentionally at the very BOTTOM of this file, not
+# here — see the end. Plugins that hook the status line (continuum's auto-save
+# via status-right, agent-mgr's window tab glyph) must load AFTER the Appearance
+# settings below, or those settings overwrite the hooks.
+
+# -- Appearance ----------------------------------------------------------------
+
+set -g status-position top
+set -g status-justify centre
+
+set -g status-style 'bg=default,fg=default'
+set -g status-left-length 20
+set -g status-right-length 50
+
+set -g status-left '#[bold][#S] '
+set -g status-right ' %H:%M %d-%b '
+
+setw -g window-status-format ' #I:#{?window_zoomed_flag,[#W],#W} '
+setw -g window-status-current-format ' #I:#{?window_zoomed_flag,[#W],#W} '
+setw -g window-status-current-style 'fg=#1e1e2e,bg=#89b4fa,bold'
+
+set -g pane-border-style 'fg=brightblack'
+set -g pane-active-border-style 'fg=blue'
+
+set -g message-style 'bg=default,fg=default,bold'
+set -g message-command-style 'bg=default,fg=default,bold'
+set -g mode-style 'bg=blue,fg=black'
+
+# -- Initialize TPM — MUST be the last line ------------------------------------
+# Loads all @tpm_plugins. Kept at the very bottom so plugin hooks that append to
+# the status line — continuum's auto-save (status-right) and agent-mgr's tab
+# glyph (window-status-format) — aren't clobbered by the Appearance block above.
+run '$HOME/.config/tmux/plugins/tpm/tpm'

@@ -1,0 +1,51 @@
+name: public-guard
+
+# Keeps private material out of this public repo. The generic patterns are in
+# extra/guard/patterns.txt; the specific names and addresses are themselves
+# private, so they arrive as the PUBLIC_GUARD_DENYLIST secret (the private
+# repo's guard/denylist.txt). Output names file and line only, never the text.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Private denylist from the secret
+        env:
+          DENYLIST: ${{ secrets.PUBLIC_GUARD_DENYLIST }}
+        run: |
+          if [ -z "$DENYLIST" ]; then
+            echo "::error::PUBLIC_GUARD_DENYLIST secret is not set"
+            exit 1
+          fi
+          printf '%s\n' "$DENYLIST" > "$RUNNER_TEMP/denylist.txt"
+
+      - name: Tree
+        env:
+          PUBLIC_GUARD_DENYLIST: ${{ runner.temp }}/denylist.txt
+        run: extra/guard/public-guard --tree
+
+      - name: Commits (lines and messages)
+        env:
+          PUBLIC_GUARD_DENYLIST: ${{ runner.temp }}/denylist.txt
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$BASE" ] && [ "$BASE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            extra/guard/public-guard --revs "$BASE..HEAD"
+          else
+            extra/guard/public-guard --revs -1 HEAD
+          fi
+
+      - name: Guard self-check
+        run: bash tests/public-guard.sh

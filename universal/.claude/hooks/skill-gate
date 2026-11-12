@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""Claude Code PreToolUse hook (matcher "Agent"): make orchestrators load what the
+instructions already tell them to, at the moment it matters.
+
+1. Before a second subagent spawn, the session must have loaded `token-economy` and
+   `agent-docs` (AGENTS.md, "Orchestrating subagents"). Audited 2026-11-11: 5 of 33
+   sessions spawned without them.
+2. In a repo with its own skills (.agents/skills, .claude/skills), a worker brief must name
+   the relevant ones or say "Skills: none apply". Workers that ran a repo's stack without
+   its stack skill lost rounds to known friction (one repo's local-stack skill, three times).
+
+Either refusal is a deny with a reason the agent reads; it loads the skill or fixes the
+brief and re-issues the call. Read-only lookup agents and forks skip rule 2. A transcript
+that cannot be parsed is reported on stderr (exit 1, non-blocking) rather than blocking work.
+Self-check: tests/skill-gate.sh
+"""
+import json
+import os
+import re
+import sys
+
+LOOKUP_TYPES = {
+    "fork", "Explore", "web-fetch", "claude-code-guide", "statusline-setup",
+    "codebase-memory", "codebase-memory-auditor", "codebase-memory-scout",
+}
+REQUIRED = ("token-economy", "agent-docs")
+NONE_APPLY = re.compile(r"skills?\s*:\s*none", re.I)
+SKILL_FILE = re.compile(r"skills/([A-Za-z0-9_.-]+)/SKILL\.md")
+COMMAND = re.compile(r"<command-name>/?([A-Za-z0-9_.:-]+)</command-name>")
+
+
+def deny(reason):
+    json.dump({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": reason,
+    }}, sys.stdout)
+    sys.exit(0)
+
+
+def session_history(path):
+    """(prior Agent spawns in the main thread, skills loaded) from the transcript."""
+    spawns, loaded = 0, set()
+    with open(path) as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue  # a partially written last line
+            if row.get("isSidechain"):
+                continue
+            content = (row.get("message") or {}).get("content")
+            if isinstance(content, str):
+                loaded.update(n.split(":")[-1] for n in COMMAND.findall(content))
+                continue
+            for part in content or []:
+                if not isinstance(part, dict) or part.get("type") != "tool_use":
+                    continue
+                name, inp = part.get("name"), part.get("input") or {}
+                if name == "Agent":
+                    spawns += 1
+                elif name == "Skill" and inp.get("skill"):
+                    loaded.add(inp["skill"].split(":")[-1])
+                elif name in ("Read", "Bash"):
+                    loaded.update(SKILL_FILE.findall(inp.get("file_path", "") + inp.get("command", "")))
+    return spawns, loaded
+
+
+def repo_skills(cwd):
+    """{name: description} for the nearest repo's own skills, or {} if it has none."""
+    home = os.path.expanduser("~")
+    d = os.path.abspath(cwd)
+    while True:
+        if d == home or d == os.path.dirname(d):  # ~/.claude/skills are global, not a repo's
+            return {}
+        candidates = [d]
+        if os.path.isdir(os.path.join(d, ".bare")):  # clone-for-wt root: use the primary worktree
+            candidates += [os.path.join(d, b) for b in ("main", "master")]
+        for root in candidates:
+            found = {}
+            for sub in (".agents/skills", ".claude/skills"):
+                base = os.path.join(root, sub)
+                if not os.path.isdir(base):
+                    continue
+                for name in sorted(os.listdir(base)):
+                    md = os.path.join(base, name, "SKILL.md")
+                    if os.path.isfile(md):
+                        found[name] = describe(md)
+            if found:
+                return found
+        if os.path.exists(os.path.join(d, ".git")):
+            return {}
+        d = os.path.dirname(d)
+
+
+def describe(md):
+    with open(md) as f:
+        for line in f:
+            if line.startswith("description:"):
+                text = line.split(":", 1)[1].strip().strip("'\"")
+                return text[:140] + ("…" if len(text) > 140 else "")
+    return ""
+
+
+def main():
+    event = json.load(sys.stdin)
+    if event.get("tool_name") != "Agent":
+        return
+    inp = event.get("tool_input") or {}
+    in_subagent = bool(event.get("agent_id"))
+
+    transcript = event.get("transcript_path")
+    if not in_subagent and transcript and os.path.isfile(transcript):
+        spawns, loaded = session_history(transcript)
+        missing = [s for s in REQUIRED if s not in loaded]
+        if spawns >= 1 and missing:
+            deny(
+                f"skill-gate: this is a second subagent spawn, and {' and '.join(missing)} "
+                f"{'is' if len(missing) == 1 else 'are'} not loaded yet. Load "
+                f"{', '.join(missing)} with the Skill tool (your instructions, \"Orchestrating "
+                "subagents\"), then re-issue this Agent call with a brief that follows them."
+            )
+
+    if inp.get("subagent_type") in LOOKUP_TYPES:
+        return
+    skills = repo_skills(event.get("cwd") or os.getcwd())
+    prompt = inp.get("prompt") or ""
+    if skills and not NONE_APPLY.search(prompt) \
+            and not any(n.lower() in prompt.lower() for n in skills):
+        listing = "\n".join(f"- {n}: {d}" for n, d in skills.items())
+        deny(
+            "skill-gate: this repo has its own skills and the brief names none of them. Add the "
+            "ones this worker should load (by name, e.g. \"Load the X skill before Y\"), or write "
+            "\"Skills: none apply\" if none do, then re-issue the call.\n" + listing
+        )
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception as e:  # report, never block on a hook bug
+        print(f"skill-gate: hook error, call allowed: {e!r}", file=sys.stderr)
+        sys.exit(1)

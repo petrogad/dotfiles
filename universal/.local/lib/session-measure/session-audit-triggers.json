@@ -1,0 +1,50 @@
+[
+  {
+    "skill": "token-economy",
+    "agents_spawned_gte": 2
+  },
+  {
+    "skill": "token-economy",
+    "prompt_regex": "token.?mindful|token usage|tokens are"
+  },
+  {
+    "skill": "agent-docs",
+    "tool_input_regex": "writes [^ ]*/agents/(plans|research|handoffs|reviews)/|> ?[^ ]*/agents/(plans|research|handoffs|reviews)/"
+  },
+  {
+    "skill": "agent-docs",
+    "agents_spawned_gte": 2
+  },
+  {
+    "skill": "claude-design-implement",
+    "prompt_regex": "claude\\.ai/design/p/"
+  },
+  {
+    "skill": "*-local-stack",
+    "tool_input_regex": "make (up|restart|acceptance)|docker (compose|restart|exec)|setup-worktree"
+  },
+  {
+    "skill": "codebase-memory",
+    "prompt_regex": "who calls|call chain|trace the|dead code|architecture"
+  },
+  {
+    "skill": "claude-in-chrome",
+    "tool_input_regex": "mcp__claude-in-chrome__",
+    "aliases": [
+      "chrome-browser",
+      "anthropic-skills:chrome-browser"
+    ]
+  },
+  {
+    "skill": "handoff",
+    "prompt_regex": "\\b(write|make|create|do) (a |the )?handoff\\b|hand this off"
+  },
+  {
+    "skill": "discord-announce",
+    "prompt_regex": "(announce|announcement|post (this|it|that)?).{0,40}discord|discord.{0,40}(announce|announcement)"
+  },
+  {
+    "skill": "mac-verify",
+    "prompt_regex": "on the mac"
+  }
+]

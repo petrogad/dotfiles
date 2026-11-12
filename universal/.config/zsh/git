@@ -1,0 +1,98 @@
+# Discard all local changes and remove untracked files
+alias nah="git reset --hard && git clean -df"
+
+# Short git status
+alias gs="git status"
+
+# Checkout the default branch (master or main)
+unalias gm 2>/dev/null
+gm() {
+ if git show-ref --verify --quiet refs/heads/master; then
+    git checkout master
+ elif git show-ref --verify --quiet refs/heads/main; then
+    git checkout main
+ else
+    echo "Neither master nor main branch found"
+  fi
+}
+
+# Pull latest changes
+alias gp="git pull"
+
+# Stage all changes
+alias ga="git add ."
+
+# Delete local branches already merged into current branch (excluding master/dev)
+alias grm='git branch --merged | egrep -v "(^\*|master|dev)" | xargs git branch -d'
+
+# Pretty one-line log with graph, colors, relative dates, and author
+alias gl="git log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
+
+worktree() {
+  local dir
+  dir=$(_worktree "$@") && cd "$dir"
+}
+
+worktree-rm() {
+  _worktree-rm "$@"
+}
+
+change-wt() {
+  local target="$1"
+  local -a worktree_paths
+  local line wt_path bare
+
+  wt_path=""
+  bare=false
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) wt_path="${line#worktree }"; bare=false ;;
+      "bare") bare=true ;;
+      "")
+        if ! $bare && [ -n "$wt_path" ]; then
+          worktree_paths+=("$wt_path")
+        fi
+        wt_path=""
+        bare=false
+        ;;
+    esac
+  done < <(git worktree list --porcelain 2>/dev/null; printf '\n')
+
+  if [ ${#worktree_paths[@]} -eq 0 ]; then
+    echo "change-wt: no worktrees found (not in a git repo?)" >&2
+    return 1
+  fi
+
+  local selected=""
+  if [ -n "$target" ]; then
+    local normalized="${target//\//-}"
+    local p
+    for p in "${worktree_paths[@]}"; do
+      if [ "${p##*/}" = "$target" ] || [ "${p##*/}" = "$normalized" ]; then
+        selected="$p"
+        break
+      fi
+    done
+    if [ -z "$selected" ]; then
+      for p in "${worktree_paths[@]}"; do
+        if [[ "${p##*/}" == *"$target"* ]]; then
+          selected="$p"
+          break
+        fi
+      done
+    fi
+    if [ -z "$selected" ]; then
+      echo "change-wt: no worktree matching: $target" >&2
+      return 1
+    fi
+  elif command -v fzf >/dev/null 2>&1; then
+    selected=$(printf '%s\n' "${worktree_paths[@]}" | fzf --height=40% --reverse --prompt="worktree> ")
+  else
+    PS3="Select worktree: "
+    select selected in "${worktree_paths[@]}"; do
+      [ -n "$selected" ] && break
+    done
+  fi
+
+  [ -n "$selected" ] && cd "$selected"
+}

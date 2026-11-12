@@ -1,0 +1,14 @@
+#!/bin/sh
+# Claude Code SessionStart hook: make node/npm/npx work in agent Bash commands.
+#
+# Agent commands run from a snapshot of the interactive shell, which keeps zsh-nvm's lazy-load
+# stubs but not their loader, and nvm's `current` is often not the version a project's .nvmrc
+# wants. Lines written to $CLAUDE_ENV_FILE are sourced before every agent Bash command (and never
+# in your own terminal): drop the stubs and put the .nvmrc-aware shims first on PATH.
+[ -n "$CLAUDE_ENV_FILE" ] || exit 0
+[ -d "$HOME/.local/lib/node-shims" ] || exit 0
+cat >> "$CLAUDE_ENV_FILE" <<'ENV'
+unset -f node npm npx corepack nvm 2>/dev/null
+export PATH="$HOME/.local/lib/node-shims:$PATH"
+ENV
+exit 0

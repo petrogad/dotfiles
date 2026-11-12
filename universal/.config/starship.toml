@@ -1,0 +1,67 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+# Default 500ms trips on git's first run in a repo (core.fsmonitor spawns the
+# watcher daemon on demand), spamming timeout WARNs in fresh shells.
+command_timeout = 1500
+
+format = """
+$username\
+$hostname\
+$directory\
+$git_branch\
+$git_status\
+$nodejs\
+$python\
+$rust\
+$golang\
+$docker_context\
+$cmd_duration\
+$line_break\
+$character"""
+
+[username]
+# Only shown over SSH (or as root); pairs with the hostname module below
+show_always = false
+format = '[$user]($style)[@](dimmed)'
+style_user = 'bold yellow'
+
+[hostname]
+ssh_only = true
+format = '[$ssh_symbol$hostname]($style) '
+ssh_symbol = '🌐 '
+style = 'bold yellow'
+
+[character]
+success_symbol = '[❯](bold green)'
+error_symbol = '[❯](bold red)'
+
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+
+[git_branch]
+format = '[$symbol$branch(:$remote_branch)]($style) '
+
+[git_status]
+format = '([$all_status$ahead_behind]($style) )'
+
+[cmd_duration]
+min_time = 2_000
+format = '[$duration]($style) '
+
+[nodejs]
+format = '[$symbol($version)]($style) '
+detect_files = ['package.json', '.node-version']
+
+[python]
+format = '[$symbol($version)]($style) '
+
+[rust]
+format = '[$symbol($version)]($style) '
+
+[golang]
+format = '[$symbol($version)]($style) '
+
+[docker_context]
+format = '[$symbol$context]($style) '
+only_with_files = true

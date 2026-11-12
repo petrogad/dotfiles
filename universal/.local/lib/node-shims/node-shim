@@ -1,0 +1,25 @@
+#!/bin/sh
+# node / npm / npx / corepack for agent shells: run the nvm-installed version that the nearest
+# .nvmrc asks for, else nvm's `current`, else the newest installed. Linked under each tool's name;
+# the Claude Code SessionStart hook ~/.claude/hooks/agent-node-env puts this directory first on
+# PATH for agent Bash commands only, where zsh-nvm's lazy-load stubs do not work.
+name=$(basename "$0")
+base="${NVM_DIR:-$HOME/.nvm}/versions/node"
+want= ver=
+dir=$PWD
+while :; do
+    if [ -f "$dir/.nvmrc" ]; then want=$(tr -d ' \nv\r' < "$dir/.nvmrc"); break; fi
+    [ "$dir" = / ] && break
+    dir=$(dirname "$dir")
+done
+if [ -n "$want" ]; then
+    ver=$(ls "$base" 2>/dev/null | grep -E "^v${want}(\.|$)" | sort -t. -k1,1V -k2,2n -k3,3n | tail -1)
+fi
+[ -n "$ver" ] || ver=$(basename "$(readlink "${NVM_DIR:-$HOME/.nvm}/current" 2>/dev/null)" 2>/dev/null)
+[ -n "$ver" ] && [ -x "$base/$ver/bin/$name" ] || ver=$(ls "$base" 2>/dev/null | sort -t. -k1,1V -k2,2n -k3,3n | tail -1)
+if [ -z "$ver" ] || [ ! -x "$base/$ver/bin/$name" ]; then
+    echo "node-shim: no nvm-installed $name for .nvmrc '${want:-none}' under $base" >&2
+    exit 127
+fi
+# npm and npx start with `#!/usr/bin/env node`: put the chosen version first so they agree.
+PATH="$base/$ver/bin:$PATH" exec "$base/$ver/bin/$name" "$@"

@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# public-guard — keep private material out of this public repo.
+#
+#   public-guard --staged              added lines in the index (pre-commit)
+#   public-guard --revs <rev-list…>    added lines and messages of those commits (pre-push, CI)
+#   public-guard --tree                every tracked file at HEAD (CI)
+#
+# Patterns are extended regexes, one per line, matched case-insensitively:
+#   extra/guard/patterns.txt                   generic, public (home paths, session links, …)
+#   <private repo>/guard/denylist.txt          the specific names and addresses, themselves private
+#   $PUBLIC_GUARD_DENYLIST                     a file with the private list (CI writes the secret here)
+# The private repo is $DOTFILES_PRIVATE, else ../dotfiles-private beside this repo.
+#
+# Output names the file and line and which list matched — never the matched
+# text, since CI logs on a public repo are public too. Exit 1 on any match.
+set -euo pipefail
+
+repo="$(git rev-parse --show-toplevel)"
+here="$(cd "$(dirname "$0")" && pwd)"
+private="${DOTFILES_PRIVATE:-$(dirname "$repo")/dotfiles-private}"
+
+# Files that must contain the patterns themselves.
+SKIP_PATHS="extra/guard/patterns.txt tests/public-guard.sh"
+skip_path() { case " $SKIP_PATHS " in *" $1 "*) return 0;; esac; return 1; }
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+refs="$work/refs"; texts="$work/texts"; : >"$refs"; : >"$texts"
+
+# Pattern lists: "<label>\t<file>"
+lists=("generic"$'\t'"$here/patterns.txt")
+if [ -n "${PUBLIC_GUARD_DENYLIST:-}" ]; then
+  [ -f "$PUBLIC_GUARD_DENYLIST" ] || { echo "public-guard: PUBLIC_GUARD_DENYLIST=$PUBLIC_GUARD_DENYLIST is not a file" >&2; exit 2; }
+  lists+=("private"$'\t'"$PUBLIC_GUARD_DENYLIST")
+elif [ -f "$private/guard/denylist.txt" ]; then
+  lists+=("private"$'\t'"$private/guard/denylist.txt")
+else
+  echo "public-guard: no private denylist ($private/guard/denylist.txt) — checking generic patterns only." >&2
+fi
+
+# Turn `git diff -U0` output into one record per added line.
+added_lines() { # stdin: diff; $1: prefix for the ref
+  awk -v pfx="$1" -v R="$refs" -v T="$texts" -v skip="$SKIP_PATHS" '
+    BEGIN      { n = split(skip, s, " "); for (i = 1; i <= n; i++) skipped[s[i]] = 1 }
+    /^\+\+\+ / { f = substr($0, 5); sub(/^b\//, "", f); if (f in skipped) f = "/dev/null"; next }
+    /^@@ /     { split($3, a, ","); n = substr(a[1], 2) + 0; next }
+    /^\+/      { if (f != "/dev/null") { print pfx f ":" n >> R; print substr($0, 2) >> T }; n++ }'
+}
+
+add_file() { # path relative to repo, at HEAD
+  local p="$1" i=0 line
+  skip_path "$p" && return 0
+  git show "HEAD:$p" 2>/dev/null | LC_ALL=C grep -Iq . || return 0   # binary or empty
+  while IFS= read -r line || [ -n "$line" ]; do
+    i=$((i + 1)); printf '%s:%s\n' "$p" "$i" >>"$refs"; printf '%s\n' "$line" >>"$texts"
+  done < <(git show "HEAD:$p")
+}
+
+case "${1:-}" in
+  --staged)
+    git diff --cached -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ | added_lines "" ;;
+  --revs)
+    shift
+    while read -r c; do
+      short="$(git rev-parse --short "$c")"
+      git show --format= -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$c" | added_lines "commit $short "
+      i=0
+      while IFS= read -r line; do
+        i=$((i + 1)); printf 'commit %s message:%s\n' "$short" "$i" >>"$refs"; printf '%s\n' "$line" >>"$texts"
+      done < <(git log -1 --format=%B "$c")
+    done < <(git rev-list "$@") ;;
+  --tree)
+    while IFS= read -r p; do add_file "$p"; done < <(git ls-tree -r --name-only HEAD) ;;
+  *)
+    sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
+esac
+
+hits=0
+for entry in "${lists[@]}"; do
+  label="${entry%%$'\t'*}"; file="${entry#*$'\t'}"
+  n=0
+  while IFS= read -r pat || [ -n "$pat" ]; do
+    n=$((n + 1))
+    case "$pat" in ''|'#'*) continue;; esac
+    while IFS= read -r idx; do
+      echo "public-guard: $(sed -n "${idx}p" "$refs"): matches $label pattern $n" >&2
+      hits=$((hits + 1))
+    done < <(LC_ALL=C grep -inE -e "$pat" "$texts" | cut -d: -f1)
+  done < "$file"
+done
+
+if [ "$hits" -gt 0 ]; then
+  echo "public-guard: $hits match(es). This repo is public: move the value to the private repo, or use a placeholder." >&2
+  exit 1
+fi

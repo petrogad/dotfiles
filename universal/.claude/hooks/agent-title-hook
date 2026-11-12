@@ -1,0 +1,28 @@
+#!/bin/sh
+# Claude Code SessionStart hook for agent-title (universal/.local/bin/agent-title).
+#
+# - On a fresh session (startup or /clear) in a pane that owns the window's name, or in a window
+#   nobody owns yet, clear the rename cooldown: it belongs to the previous session's topic. Resume
+#   and compact are the same session, so its cooldown stands.
+# - If the window still has its default shell name, remind the agent to name it. Silent otherwise,
+#   so a named window costs no context.
+[ -n "$TMUX" ] && [ -n "$TMUX_PANE" ] || exit 0
+command -v tmux >/dev/null 2>&1 || exit 0
+
+source="$(jq -r '.source // empty' 2>/dev/null)"
+owner="$(tmux show-options -wqv -t "$TMUX_PANE" @agent_title_pane)"
+
+case "$source" in
+  startup | clear)
+    if [ -z "$owner" ] || [ "$owner" = "$TMUX_PANE" ]; then
+      tmux set-option -wqu -t "$TMUX_PANE" @agent_title_at
+    fi
+    ;;
+esac
+
+case "$(tmux display -p -t "$TMUX_PANE" '#{window_name}')" in
+  zsh | bash | fish | sh | -zsh | -bash | "")
+    echo "agent-title: this tmux window is still unnamed. Once you understand the task, run agent-title \"Short Name\" (see \"Name the tmux window\" in your instructions)."
+    ;;
+esac
+exit 0

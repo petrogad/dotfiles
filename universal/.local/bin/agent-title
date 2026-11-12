@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# agent-title "Short Name" — name the tmux window an agent is running in.
+#
+# Guards so agents don't thrash the name:
+#   - names are letters, digits and spaces, 1-20 chars (rejected, not truncated);
+#   - a window you named yourself is never touched: the agent may only rename a
+#     window still on its default shell name, or one whose name it set last;
+#   - one agent owns the name: the pane that set it last, while that pane exists,
+#     so two agents in one window don't take turns;
+#   - after setting a name, further renames are refused for AGENT_TITLE_COOLDOWN
+#     seconds (default 1200 = 20 min). The SessionStart hook
+#     (~/.claude/hooks/agent-title-hook) clears it for a new session;
+#   - setting the name it already has is a silent no-op.
+# Every refusal exits 0 with a one-line reason so it never fails an agent's turn.
+set -euo pipefail
+
+name="${*:-}"
+cooldown="${AGENT_TITLE_COOLDOWN:-1200}"
+
+if [ -z "${TMUX:-}" ] || [ -z "${TMUX_PANE:-}" ]; then
+  echo "agent-title: not inside tmux, skipped" >&2
+  exit 0
+fi
+
+if [ -z "$name" ] || [ "${#name}" -gt 20 ] || ! [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9\ ]*$ ]]; then
+  echo "agent-title: name must be 1-20 letters, digits or spaces: '$name'" >&2
+  exit 2
+fi
+
+target="$TMUX_PANE"
+current="$(tmux display -p -t "$target" '#{window_name}')"
+owned="$(tmux show-options -wqv -t "$target" @agent_title)"
+set_at="$(tmux show-options -wqv -t "$target" @agent_title_at)"
+owner="$(tmux show-options -wqv -t "$target" @agent_title_pane)"
+now="$(date +%s)"
+
+if [ "$current" = "$name" ]; then
+  exit 0
+fi
+
+case "$current" in
+  zsh | bash | fish | sh | -zsh | -bash | "") ;;
+  *)
+    if [ "$current" != "$owned" ]; then
+      echo "agent-title: window was named '$current' by hand, left alone" >&2
+      exit 0
+    fi
+    # shortcut: an owner pane that still exists but no longer runs an agent keeps the name,
+    # upgrade to checking its pane_current_command if that strands names in practice.
+    if [ -n "$owner" ] && [ "$owner" != "$target" ] &&
+      tmux list-panes -t "$target" -F '#{pane_id}' | grep -qx "$owner"; then
+      echo "agent-title: '$current' belongs to the agent in pane $owner, left alone" >&2
+      exit 0
+    fi
+    if [ -n "$set_at" ] && [ $((now - set_at)) -lt "$cooldown" ]; then
+      echo "agent-title: renamed $(((now - set_at) / 60))m ago, keeping '$current' (cooldown $((cooldown / 60))m)" >&2
+      exit 0
+    fi
+    ;;
+esac
+
+tmux rename-window -t "$target" "$name"
+tmux set-option -wq -t "$target" @agent_title "$name"
+tmux set-option -wq -t "$target" @agent_title_at "$now"
+tmux set-option -wq -t "$target" @agent_title_pane "$target"
+echo "agent-title: '$current' -> '$name'" >&2

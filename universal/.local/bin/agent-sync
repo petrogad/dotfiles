@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# agent-sync — sync ~/agents, and the private dotfiles repo, with their private
+# GitHub remotes via git. The timer runs it with no arguments; pass directories
+# to sync those instead.
+# Safe unattended (launchd / systemd timer): quiet no-op when offline, locked,
+# paused, mid-conflict, or (for a repo other than ~/agents) not on main. What
+# syncs is each repo's .gitignore plus a size guard: a NEW file over
+# AGENT_SYNC_MAX_MB (default 10) is never added — it goes into
+# .git/info/exclude so it stays on this machine. Already-tracked files sync at
+# any size.
+set -euo pipefail
+
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+
+LOCK_DIR="${TMPDIR:-/tmp}/agent-sync.lock"
+LOG="${AGENT_SYNC_LOG:-$HOME/.local/state/agent-sync.log}"
+MAX_MB="${AGENT_SYNC_MAX_MB:-10}"
+
+mkdir -p "$(dirname "$LOG")"
+log() { printf '%s agent-sync: %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$1" >>"$LOG"; }
+
+# The private dotfiles repo is wherever `make private` stowed private.zsh from.
+private_repo() {
+  local link="$HOME/.config/zsh/env.d/private.zsh" target
+  [ -L "$link" ] || return 0
+  target="$(readlink -f "$link" 2>/dev/null)" || return 0
+  git -C "$(dirname "$target")" rev-parse --show-toplevel 2>/dev/null || true
+}
+
+sync_dir() {
+  local dir="$1"
+  [ -d "$dir/.git" ] || { log "$dir is not a git repo; skip"; return 0; }
+  cd "$dir"
+
+  # agent-workspace-init leaves this behind so a freshly adopted tree is
+  # reviewed before its first push. Remove it to start syncing.
+  if [ -f .git/agent-sync-paused ]; then log "$dir: paused (.git/agent-sync-paused); skip"; return 0; fi
+
+  # Never fight a human (or a previous failed run): bail while a rebase/merge
+  # is in flight so manual resolution isn't clobbered.
+  if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ] || [ -f .git/MERGE_HEAD ]; then
+    log "rebase/merge in progress in $dir; resolve manually — skip"
+    return 0
+  fi
+
+  # Someone is working on a branch here: leave it alone until it is back on main.
+  local branch
+  branch="$(git symbolic-ref --short -q HEAD || true)"
+  if [ "$branch" != main ]; then log "$dir: on '${branch:-detached HEAD}', not main; skip"; return 0; fi
+
+  # Commit local changes first so pull --rebase replays them cleanly.
+  git add -A
+  local f size
+  while IFS= read -r -d '' f; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue   # symlinks are stored as links, not content
+    size=$(( $(wc -c <"$f" 2>/dev/null || echo 0) ))
+    if [ "$size" -gt $((MAX_MB * 1024 * 1024)) ]; then
+      git reset -q -- "$f"
+      printf '/%s\n' "$(printf '%s' "$f" | sed 's/[][*?\\!#]/\\&/g')" >>.git/info/exclude
+      log "$dir: kept local (over ${MAX_MB} MB): $f"
+    fi
+  done < <(git diff --cached --name-only --diff-filter=A -z)
+  if ! git diff --cached --quiet; then
+    git commit -q -m "sync: $(hostname -s) $(date '+%Y-%m-%d %H:%M')" || { log "$dir: commit failed"; return 0; }
+    log "$dir: committed local changes"
+  fi
+
+  # Offline / remote down => quiet success so launchd doesn't flag failures.
+  if ! git fetch -q origin 2>>"$LOG"; then
+    log "$dir: fetch failed (offline?); skip"
+    return 0
+  fi
+
+  if ! git pull -q --rebase origin main >>"$LOG" 2>&1; then
+    git rebase --abort >/dev/null 2>&1 || true
+    log "$dir: rebase conflict — local commits kept; resolve manually"
+    return 0
+  fi
+
+  if git push -q origin main >>"$LOG" 2>&1; then log "$dir: sync ok"; else log "$dir: push failed (exit $?)"; fi
+}
+
+# Overlap guard (mkdir is atomic; macOS has no flock).
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then log "run in progress; skip"; exit 0; fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+
+if [ "$#" -eq 0 ]; then
+  set -- "$HOME/agents"
+  priv="$(private_repo)"
+  [ -z "$priv" ] || set -- "$@" "$priv"
+fi
+
+for dir in "$@"; do (sync_dir "$dir") || log "$dir: sync failed (exit $?)"; done
+exit 0

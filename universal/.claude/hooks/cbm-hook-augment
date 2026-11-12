@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Claude Code hook: codebase-memory's `hook-augment`, made to work in .bare worktrees.
+
+`codebase-memory-mcp hook-augment` adds graph context beside a session's searches ("this symbol is
+a Function in read.ts") and at session and subagent start. Two things stop it firing here:
+
+  - it matches the payload's `cwd` to an index by exact directory, and only `<repo>/main` (or
+    master) is indexed, so in `<repo>` or a branch worktree it says nothing, or "run
+    index_repository";
+  - for Bash it only reads a command that starts with grep/rg, and agents write
+    `cd <worktree> && grep ...`.
+
+This wrapper rewrites the payload before handing it to the binary: the first grep/rg segment of a
+Bash command becomes the command (any `cd` before it moves cwd), and a cwd inside an unindexed
+worktree of a .bare repo moves to the same place in the indexed primary worktree. When it moved
+anything it adds one line saying the graph's paths are the primary's, so nobody edits main by
+mistake. Anything else passes through unchanged. Never fails the tool call: errors exit 0.
+
+Smoke test (from inside a branch worktree):
+  echo '{"hook_event_name":"PreToolUse","cwd":"'"$PWD"'","tool_name":"Bash","tool_input":{"command":"cd '"$PWD"' && grep -rn someSymbol src"}}' \
+    | ~/.claude/hooks/cbm-hook-augment
+"""
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+
+CACHE = os.environ.get('CBM_CACHE_DIR') or os.path.expanduser('~/.cache/codebase-memory-mcp')
+BIN = os.environ.get('CBM_BIN') or os.path.expanduser('~/.local/bin/codebase-memory-mcp')
+SEARCHES = ('grep', 'egrep', 'fgrep', 'rg')
+
+
+def indexed(path):
+    """codebase-memory names a project after its path: /a/b/c -> a-b-c.db in the cache."""
+    name = os.path.realpath(path).strip(os.sep).replace(os.sep, '-')
+    return os.path.exists(os.path.join(CACHE, name + '.db'))
+
+
+def bare_root(path):
+    path = os.path.realpath(path)
+    while True:
+        if os.path.isdir(os.path.join(path, '.bare')):
+            return path
+        parent = os.path.dirname(path)
+        if parent == path:
+            return None
+        path = parent
+
+
+def search_segment(command, cwd):
+    """(first grep/rg segment, cwd after any `cd` before it), or (None, cwd)."""
+    for seg in re.split(r'&&|\|\||;|\n', command):
+        seg = seg.strip()
+        try:
+            words = shlex.split(seg)
+        except ValueError:
+            continue
+        if not words:
+            continue
+        if words[0] == 'cd' and len(words) > 1:
+            cwd = os.path.join(cwd, os.path.expanduser(words[1]))
+        elif os.path.basename(words[0]) in SEARCHES:
+            return seg, cwd
+    return None, cwd
+
+
+def outside_repo(words, cwd):
+    """True when any absolute or ~ path in words is outside the repo cwd is in."""
+    root = bare_root(cwd) or os.path.realpath(cwd)
+    for w in words:
+        if w.startswith(('/', '~')):
+            path = os.path.realpath(os.path.expanduser(w))
+            if path != root and not path.startswith(root + os.sep):
+                return True
+    return False
+
+
+def to_primary(cwd):
+    """(new cwd, worktree dir, primary dir) when cwd is in an unindexed .bare worktree, else None."""
+    root = bare_root(cwd)
+    if not root:
+        return None
+    cwd = os.path.realpath(cwd)
+    rel = os.path.relpath(cwd, root)
+    wt = os.path.join(root, rel.split(os.sep)[0]) if rel != '.' else root
+    if wt != root and indexed(wt):
+        return None
+    primary = next((os.path.join(root, b) for b in ('master', 'main')
+                    if os.path.isdir(os.path.join(root, b)) and indexed(os.path.join(root, b))), None)
+    if not primary or primary == wt:
+        return None
+    inner = os.path.relpath(cwd, wt) if wt != root else '.'
+    target = os.path.normpath(os.path.join(primary, inner))
+    return (target if os.path.isdir(target) else primary), wt, primary
+
+
+def main():
+    raw = sys.stdin.read()
+    payload = json.loads(raw)
+    cwd = payload.get('cwd') or os.getcwd()
+    tool_input = payload.get('tool_input') or {}
+
+    if payload.get('tool_name') == 'Bash' and isinstance(tool_input.get('command'), str):
+        seg, cwd = search_segment(tool_input['command'], cwd)
+        if seg:
+            if outside_repo(shlex.split(seg)[1:], cwd):
+                return  # a search of ~/agents or /tmp: the repo's graph would only add noise
+            tool_input['command'] = seg
+    elif isinstance(tool_input.get('path'), str) and outside_repo([tool_input['path']], cwd):
+        return
+
+    moved = to_primary(cwd)
+    if moved:
+        cwd, wt, primary = moved
+        for k, v in tool_input.items():  # file_path / path arguments pointing into the worktree
+            if isinstance(v, str) and (v == wt or v.startswith(wt + os.sep)):
+                tool_input[k] = primary + v[len(wt):]
+    payload['cwd'] = cwd
+    if tool_input:
+        payload['tool_input'] = tool_input
+
+    out = subprocess.run([BIN, 'hook-augment'], input=json.dumps(payload), capture_output=True, text=True,
+                         cwd=cwd if os.path.isdir(cwd) else None, timeout=7.5).stdout
+    if not out.strip():
+        return
+    if moved:
+        try:
+            res = json.loads(out)
+            spec = res.get('hookSpecificOutput') or {}
+            if spec.get('additionalContext'):
+                where = 'your branch worktree' if wt == os.path.dirname(primary) else wt
+                spec['additionalContext'] += (
+                    f'\n[cbm-hook-augment] Graph results come from the {os.path.basename(primary)} worktree'
+                    f' ({primary}). Read and edit the same relative paths in {where}, not there;'
+                    ' files changed on this branch are not in the graph.')
+                out = json.dumps(res)
+        except ValueError:
+            pass
+    sys.stdout.write(out)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception:  # a broken hook must never block a tool call
+        pass

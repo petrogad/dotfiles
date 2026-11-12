@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Linked into <repo>/.bare/hooks by install-git-hooks, so it runs in every worktree of the repo.
+# Blocks a commit whose staged changes contain a secret, using gitleaks and the repo's own
+# .gitleaks.toml when it has one. A false positive: add its fingerprint (printed below the
+# finding) to .gitleaksignore, or commit with --no-verify once you have checked it yourself.
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-commit: gitleaks is not installed, so this commit could not be scanned for secrets." >&2
+  echo "  Install it (make homebrew, or make apt-packages on Linux) and commit again." >&2
+  exit 1
+fi
+
+# gitleaks 8.19 replaced `protect` with `git --pre-commit`; Debian 13 still ships 8.16.
+if gitleaks git --help >/dev/null 2>&1; then
+  exec gitleaks git --pre-commit --staged --redact --verbose --no-banner
+else
+  exec gitleaks protect --staged --redact --verbose --no-banner
+fi

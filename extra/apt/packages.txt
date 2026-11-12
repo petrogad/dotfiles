@@ -1,0 +1,43 @@
+build-essential
+# NOT cargo: Debian's rustc is too old to build tmux-agent-mgr (needs 1.88,
+# trixie has 1.85). `make bootstrap` installs rustup instead, and
+# env.d/rust.zsh puts it first on PATH.
+git
+curl
+wget
+stow
+ripgrep
+jq
+# Secret scan in the pre-commit hook install-git-hooks links into every .bare repo.
+# Debian 13 ships 8.16 (older rules, no `gitleaks git`); the hook handles both CLIs.
+gitleaks
+fd-find
+tmux
+nano
+neovim
+vim
+zsh
+# GitHub CLI. Not in Debian's repos — `make bootstrap` adds cli.github.com
+# to apt first, so this line only resolves after that has run.
+gh
+# psql/createdb/dropdb. LOAD-BEARING on a dev node: db-clone, db-drop and
+# db-ls are thin wrappers around these, and refresh-seed uses pg_dump.
+# Without it a fresh machine cannot touch the database host at all.
+# Comes from PGDG (added by `make bootstrap`), not Debian: Debian 13 ships
+# client 17 and pg_dump refuses a server newer than itself.
+postgresql-client
+# Survives sleep, roaming and IP changes, unlike ssh — the difference between
+# reattaching to a remote tmux session and rebuilding it.
+mosh
+# The shell config aliases `ls` to lsd in five places, so without it a fresh
+# Linux box fails on the very first command you type.
+lsd
+# Prompt. Referenced by .zshrc; without it the prompt silently degrades.
+starship
+lazygit
+# Debian installs these as `batcat` and `fdfind` (name clashes with other
+# packages); `make apt-packages` symlinks them back to bat/fd afterwards.
+bat
+fzf
+zoxide
+

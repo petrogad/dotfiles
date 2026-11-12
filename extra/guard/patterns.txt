@@ -1,0 +1,18 @@
+# Generic patterns for extra/guard/public-guard: things that never belong in
+# this public repo, whoever's machine they came from. Extended regexes, one per
+# line, matched case-insensitively. Names and addresses specific to my machines
+# live in the private repo's guard/denylist.txt instead.
+
+# A home directory spelled out: use ~ or $HOME.
+/Users/[a-z][a-z0-9._-]*/
+/home/[a-z][a-z0-9._-]*/
+# Agent session links and trailers.
+claude\.ai/code/session
+^Claude-Session:
+# A real 1Password reference (placeholders look like op://<vault>/…).
+op://[a-z0-9]
+# Local-network names.
+\.home\.arpa
+\.local\.lan
+# Personal mailboxes; commits here use the GitHub noreply address.
+[a-z0-9._%+-]+@(gmail|googlemail|icloud|me|outlook|hotmail|yahoo|proton|protonmail)\.(com|me)

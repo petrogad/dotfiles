@@ -1,0 +1,6 @@
+# -- Agent work-management workspace -------------------------------------------
+# Research, plans, handoffs, reviews and artifacts (see the agent-docs skill).
+# The skills and AGENTS.md resolve every path from this one variable.
+
+export AGENT_WORK_DIR="$HOME/agents"
+[[ -d "$AGENT_WORK_DIR" ]] || mkdir -p "$AGENT_WORK_DIR"

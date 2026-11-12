@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Claude Code SessionStart / SubagentStart hook: which codebase-memory index serves this repo?
+
+Every repo here uses the clone-for-wt layout: `<repo>/.bare` plus one worktree per branch
+(`<repo>/main`, `<repo>/feat-x`). codebase-memory matches indexes by exact working directory,
+so a session started in `<repo>` or in a fresh worktree is told "no indexed graph project
+matched", and agents then fall back to grep even when `<repo>/main` is indexed.
+
+This hook resolves the layout and:
+  - tells the agent which graph project to use (the worktree's own index, else the primary
+    branch's), and that the binary's "no index" line does not apply;
+  - warns YOU (a systemMessage, SessionStart only) when the repo has no index at all, or the
+    one it has is behind origin/<primary>, with the command that fixes it.
+
+Reads the index databases directly (sqlite) so it stays well under a second. Never fails the
+session: any error exits 0 with no output.
+
+Smoke test:
+  echo '{"hook_event_name":"SessionStart","cwd":"'"$PWD"'"}' | ~/.claude/hooks/cbm-index-check
+"""
+import datetime
+import glob
+import json
+import os
+import sqlite3
+import subprocess
+import sys
+
+STALE_COMMITS = 10  # warn when the index is this many commits behind origin/<primary>
+CACHE = os.environ.get('CBM_CACHE_DIR') or os.path.expanduser('~/.cache/codebase-memory-mcp')
+CLI = 'cbm-reindex'
+
+
+def git(*args, cwd=None):
+    try:
+        out = subprocess.run(['git', *args], cwd=cwd, capture_output=True, text=True, timeout=3)
+        return out.stdout.strip() if out.returncode == 0 else ''
+    except (OSError, subprocess.SubprocessError):
+        return ''
+
+
+def bare_root(path):
+    """The directory holding `.bare`, walking up from path; None for an ordinary clone."""
+    path = os.path.realpath(path)
+    while True:
+        if os.path.isdir(os.path.join(path, '.bare')):
+            return path
+        parent = os.path.dirname(path)
+        if parent == path:
+            return None
+        path = parent
+
+
+def primary_branch(git_dir_args, cwd):
+    # Same order as dotfiles' _worktree: master wins if both exist.
+    for b in ('master', 'main'):
+        ref = f'refs/remotes/origin/{b}'
+        if git(*git_dir_args, 'rev-parse', '--verify', '--quiet', ref, cwd=cwd):
+            return b
+    return None
+
+
+def indexes():
+    """root_path -> (project name, indexed_at) for every index in the cache."""
+    found = {}
+    for db in glob.glob(os.path.join(CACHE, '*.db')):
+        if os.path.basename(db).startswith('_'):
+            continue
+        try:
+            con = sqlite3.connect(f'file:{db}?mode=ro', uri=True, timeout=0.5)
+            for name, at, root in con.execute("select name, indexed_at, root_path from projects where root_path != ''"):
+                found[os.path.realpath(root)] = (name, at)
+            con.close()
+        except sqlite3.Error:
+            continue
+    return found
+
+
+def daemon_up():
+    """codebase-memory's hook-augment needs its daemon. One whose socket file was removed keeps
+    running but is unreachable, and the hints stop without a word; connect to see."""
+    import socket
+    socks = glob.glob(f'/private/tmp/cbm-daemon-{os.getuid()}/cbm-*.sock') + glob.glob(f'/tmp/cbm-daemon-{os.getuid()}/cbm-*.sock')
+    if not os.path.exists(os.environ.get('CBM_BIN') or os.path.expanduser('~/.local/bin/codebase-memory-mcp')):
+        return True  # codebase-memory not installed: nothing to warn about
+    for path in socks:
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                s.settimeout(0.5)
+                s.connect(path)
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def age(indexed_at):
+    try:
+        then = datetime.datetime.fromisoformat(indexed_at.replace('Z', '+00:00'))
+        days = (datetime.datetime.now(datetime.timezone.utc) - then).days
+        return 'today' if days == 0 else f'{days}d ago'
+    except ValueError:
+        return indexed_at
+
+
+def main():
+    try:
+        payload = json.load(sys.stdin)
+    except ValueError:
+        return
+    event = payload.get('hook_event_name', 'SessionStart')
+    cwd = payload.get('cwd') or os.getcwd()
+
+    root = bare_root(cwd)
+    if root:
+        repo = os.path.basename(root)
+        primary = primary_branch(['--git-dir', os.path.join(root, '.bare')], root)
+        primary_wt = os.path.join(root, primary) if primary and os.path.isdir(os.path.join(root, primary)) else None
+        here = git('rev-parse', '--show-toplevel', cwd=cwd) if os.path.realpath(cwd) != root else ''
+    else:
+        top = git('rev-parse', '--show-toplevel', cwd=cwd)
+        if not top:
+            return  # not a repo: nothing to say
+        repo, primary, primary_wt, here = os.path.basename(top), primary_branch([], top), top, top
+        root = top
+
+    idx = indexes()
+    here_r = os.path.realpath(here) if here else ''
+    candidates = [p for p in (here_r, os.path.realpath(primary_wt) if primary_wt else '') if p]
+    chosen = next(((p, idx[p]) for p in candidates if p in idx), None)
+    if not chosen:  # any index inside this repo, e.g. a long-lived worktree
+        chosen = next(((p, v) for p, v in idx.items() if p.startswith(os.path.realpath(root) + os.sep) or p == os.path.realpath(root)), None)
+
+    target = primary_wt or here or root
+    context, warning = [], None
+    if not chosen:
+        context.append(f'[index-check] No codebase-memory index exists for {repo}. Use grep/Read, and tell the user.')
+        warning = f'codebase-memory: no index for {repo}. Index it: {CLI} {target}'
+    else:
+        path, (name, at) = chosen
+        behind = ''
+        if primary:
+            # Behind = what the checkout lacks from origin, plus what it gained since it was indexed.
+            # (Counting origin commits dated after the index missed a checkout nobody pulled.)
+            missing = git('rev-list', '--count', f'HEAD..origin/{primary}', cwd=path)
+            unindexed = git('rev-list', '--count', f'--since={at}', 'HEAD', cwd=path)
+            behind = int(missing) + int(unindexed) if missing.isdigit() and unindexed.isdigit() else ''
+        stale = isinstance(behind, int) and behind >= STALE_COMMITS
+        where = 'this worktree' if path == here_r else f'the {os.path.basename(path)} worktree'
+        line = (f'[index-check] Graph project for this session: {name} ({where}, indexed {age(at)}'
+                + (f', {behind} commits behind origin/{primary}' if behind != '' else '') + ').')
+        if root and path != here_r:
+            line += (f' Pass project={name} to graph tools. Its file paths are under {path}: read and edit'
+                     ' the same relative path in this worktree, never there. Files changed on this branch are'
+                     ' not in the graph; read them directly. Use the graph for where a symbol is defined and'
+                     ' who calls it; grep for literals, config and docs.')
+        context.append(line)
+        if stale:
+            context.append('[index-check] The index is stale: verify graph answers against the files.')
+            warning = f'codebase-memory: {name} is {behind} commits behind origin/{primary}. Refresh: {CLI} {path}'
+
+    if chosen and event == 'SessionStart' and not daemon_up():
+        warning = ((warning + ' ') if warning else '') + (
+            'codebase-memory: the daemon is not reachable, so graph hints beside searches are skipped.'
+            ' Restart: codebase-memory-mcp daemon stop; codebase-memory-mcp daemon start'
+            ' (if stop cannot reach it, kill the --cbm-daemon-internal process first).')
+
+    out = {'hookSpecificOutput': {'hookEventName': event, 'additionalContext': ' '.join(context)}}
+    if warning and event == 'SessionStart':
+        out['systemMessage'] = warning
+    print(json.dumps(out))
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception:  # a broken hook must never block a session
+        pass
