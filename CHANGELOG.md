@@ -4,6 +4,10 @@ All notable changes to this dotfiles repo. Newest entries on top.
 
 Format: `YYYY-MM-DD — short description`. Group related changes under one date.
 
+## 2026-11-16
+
+- **oh-my-zsh no longer trusts an inherited `$ZSH`.** A tmux server started under the old layout kept exporting `ZSH` into the moved repo path, so every new window failed to load oh-my-zsh. `zshrc` now names znap's repos dir once (`zstyle ':znap:*' repos-dir`) and sets `ZSH` from it before sourcing oh-my-zsh, so the shell's own config decides where oh-my-zsh lives.
+
 ## 2026-11-12
 
 - **Ready for a public repo.** `~/.zshrc` is now this machine's own file: the shared config moved to `universal/.config/zsh/zshrc`, and `make` replaces the old stow link with a two-line `~/.zshrc` that sources it (only when missing), so installers append to a file no repo tracks. New `extra/guard/public-guard` checks staged lines (pre-commit), pushed commits and their messages (new pre-push hook) and the tree (new `public-guard` CI workflow) against generic patterns plus the private repo's denylist; it never prints the matched text. `make` sets `core.hooksPath` and the noreply author for this checkout. The agent changelog hook is now opt-in (`DOTFILES_CHANGELOG_HOOK=1`), and the shared gitleaks hook runs from pre-commit. `make private` clones the private repo when it is reachable without a prompt. `agent-sync` also commits and pushes the private repo (only while it is on `main`), and its timer is installed only where there is something to sync and, on Linux, a systemd user session; it now runs after `agent-workspace`. New `make update` pulls both repos, re-applies and shows both statuses. README: anonymous bootstrap, shell-only path, the `sol` alias. New `tests/public-guard.sh`, `tests/agent-sync.sh`.
