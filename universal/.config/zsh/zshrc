@@ -3,9 +3,18 @@
 [[ -r ~/.config/zsh/znap ]] ||
     git clone --depth 1 -- https://github.com/marlonrichert/zsh-snap.git ~/.config/zsh/znap
 
+# znap clones plugins here. Named once so oh-my-zsh's location below is derived
+# from the same value rather than guessed.
+_znap_repos=~/.config/zsh
+zstyle ':znap:*' repos-dir $_znap_repos
+
 source ~/.config/zsh/znap/znap.zsh
 
-# oh-my-zsh core + git plugin
+# oh-my-zsh core + git plugin. oh-my-zsh keeps an inherited $ZSH instead of
+# finding itself, and the environment is whatever the parent exported (a tmux
+# server started under an older layout, ssh, a terminal). This file owns the
+# value, so a stale one from outside can never point it at a missing directory.
+export ZSH=$_znap_repos/ohmyzsh/ohmyzsh
 znap source ohmyzsh/ohmyzsh
 znap source ohmyzsh/ohmyzsh plugins/git
 
