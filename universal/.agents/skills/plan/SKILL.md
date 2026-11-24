@@ -41,6 +41,9 @@ back-ref if any, `Last verified:`), then:
 - **Goal / Context** — what we're building and why; link the research by path.
 - **Work-item decomposition** — the items, each with a crisp definition of done.
 - **Sequencing & dependencies** — order, what blocks what, what can go in parallel.
+- **What breaks first** — at 10–100× the data, users or traffic, which part of this design gets
+  painful first, and what would show it is coming. Write it down only: do not build for it (see
+  `AGENTS.md` → "Build only what is needed now").
 - **Status roll-up** — a live table, one row per work item. This is the "current state" surface that
   handoff agents refresh as they ship:
 

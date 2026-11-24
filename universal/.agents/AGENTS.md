@@ -81,7 +81,9 @@ still to do.
   need none. It is written after I have verified the change by hand, not during iteration; see
   "Tests while iterating".
 - **End the reply with what you skipped.** One or two lines: what you did not do or did not check,
-  and any risk I need to know about.
+  and any risk I need to know about. For the claim the work rests on ("it's fixed", "the cause is
+  X", "nothing else calls it"), say whether you verified it, inferred it, or guessed it, and what
+  would settle it. Use those words, not a percentage.
 
 ## Work-management docs
 
@@ -138,8 +140,10 @@ reverse in one command is a different thing from one I cannot.
 
 **Ask for everything up front.** Before starting a task, list in one message every key, token,
 login, unlock and decision it will need from me, so I clear them in one sitting instead of one
-round trip each. Anything that can wait goes into Todoist with the **`todoist`** skill. If a new
-need turns up mid-task, batch it with any others before you stop.
+round trip each. Include what you would need to know that I have not told you: work out first what
+the code, docs and history can answer, and ask me only the rest. Anything that can wait goes into
+Todoist with the **`todoist`** skill. If a new need turns up mid-task, batch it with any others
+before you stop.
 
 ## Merging and status
 
